@@ -1,0 +1,12 @@
+# Python Virtual Environment
+.python-version
+env
+
+# Visual Studio Code
+.vscode
+
+# SQLite
+*.sqlite3
+
+# Python Cache
+__pycache__
