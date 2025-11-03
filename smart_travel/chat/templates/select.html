@@ -17,5 +17,9 @@
         {{ new_chat_form }}
         <button type="submit">New Conversation</button>
     </form>
+    {% if error %}
+    <h2>Error</h2>
+    <p>{{ error }}</p>
+    {% endif %}
 </body>
 </html>

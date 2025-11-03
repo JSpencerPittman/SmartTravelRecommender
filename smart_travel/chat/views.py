@@ -1,10 +1,11 @@
-from django.shortcuts import render, redirect
-from chat.models import User, Conversation
-from django.core.files.base import ContentFile
-from chat.forms import NewChatForm, MessageForm
-from typing import Optional, Any
 from pathlib import Path
+from typing import Any, Optional
 
+from chat.forms import MessageForm, NewChatForm
+from chat.models import Conversation, User
+from django.core.files.base import ContentFile  # type: ignore
+from django.db.models.query import QuerySet  # type: ignore
+from django.shortcuts import redirect, render, HttpResponseRedirect  # type: ignore
 
 PROJECT_DIR = Path(__file__).parent.parent
 
@@ -26,7 +27,19 @@ def _get_current_user() -> User:
     return user
 
 
-def _find_convos(u: User, chat_id: Optional[int] = None):
+def _find_convos(u: User, chat_id: Optional[int] = None) -> QuerySet:
+    """
+    Filter Conversations using provided criteria.
+
+    Args:
+        u (User): Filter our conversations not tied to user.
+        chat_id (Optional[int], optional): Find the conversation with the
+            provided ID. Defaults to None.
+
+    Returns:
+        QuerySet: Filtered conversations.
+    """
+
     search_query: dict[str, Any] = {"user": u}
     if chat_id is not None:
         search_query["id"] = chat_id
@@ -34,18 +47,20 @@ def _find_convos(u: User, chat_id: Optional[int] = None):
     return Conversation.objects.filter(**search_query)
 
 
+def _handle_error(message: str) -> HttpResponseRedirect:
+    return redirect("/chat")
+
+
 def chat(request, chat_id: int):
     curr_user = _get_current_user()
-    convo = _find_convos(curr_user, chat_id).first()
-
-    text = "\n".join([v.decode() for v in convo.history_file_path.readlines()])
+    convo: Conversation = _find_convos(curr_user, chat_id).first()
 
     context = {
+        "chat_id": chat_id,
         "first_name": curr_user.first_name,
         "last_name": curr_user.last_name,
-        "conversation": text,
+        "conversation": convo.retrieve(),
         "message_form": MessageForm(),
-        "chat_id": chat_id,
     }
 
     return render(request, "chat.html", context)
@@ -67,30 +82,37 @@ def select(request):
 
 
 def new_chat(request):
-    assert request.method == "POST"
+    if request.method != "POST":
+        return _handle_error("Invalid new chat request.")
+
     form = NewChatForm(request.POST)
-    assert form.is_valid()
-    title = form.cleaned_data["title"]
+    if not form.is_valid():
+        return _handle_error("Invalid new chat request.")
 
     curr_user = _get_current_user()
-    new_convo = Conversation.objects.create(title=title, user=curr_user)
-    history_file_path = f"{curr_user.id}_{hash(title)}.txt"
-    new_convo.history_file_path.save(history_file_path, ContentFile("".encode()), True)
+    title = form.cleaned_data["title"]
+
+    # Create new conversation
+    file_name = f"{curr_user.id}_{hash(title)}.txt"
+    new_convo = Conversation.objects.create(
+        title=title, user=curr_user, file_name=file_name
+    )
 
     return redirect(f"/chat/{new_convo.id}")
 
 
 def message(request, chat_id: int):
-    assert request.method == "POST"
+    if request.method != "POST":
+        return _handle_error("Invalid new chat request.")
+
     form = MessageForm(request.POST)
-    assert form.is_valid()
-    message_text = form.cleaned_data["message"]
+    if not form.is_valid():
+        return _handle_error("Invalid message request.")
+
+    message = form.cleaned_data["message"]
 
     curr_user = _get_current_user()
-    convo = _find_convos(curr_user, chat_id).first()
-
-    file_path = PROJECT_DIR / Path(convo.history_file_path.name)
-    with open(file_path, "a") as conv_file:
-        conv_file.write(message_text)
+    convo: Conversation = _find_convos(curr_user, chat_id).first()
+    convo.add_message(message)
 
     return redirect(f"/chat/{chat_id}")

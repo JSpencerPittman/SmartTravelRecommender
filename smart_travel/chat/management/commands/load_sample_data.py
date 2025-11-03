@@ -10,8 +10,7 @@ class Command(BaseCommand):
 
         new_user = User.objects.create(first_name="Jason Pittman")
 
-        new_convo = Conversation.objects.create(title="New Convo", user=new_user)
-        file_content = "This is a new conversation!"
-        new_convo.history_file_path.save(
-            "new_convo.txt", ContentFile(file_content.encode()), True
+        new_convo = Conversation.objects.create(
+            title="New Convo", user=new_user, file_name="new_convo.txt"
         )
+        new_convo.add_message("This is a new conversations!")
