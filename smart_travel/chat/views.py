@@ -1,5 +1,7 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from chat.models import User, Conversation
+from django.core.files.base import ContentFile
+from chat.forms import NewChatForm
 from typing import Optional, Any
 
 
@@ -52,6 +54,21 @@ def select(request):
         "first_name": curr_user.first_name,
         "last_name": curr_user.last_name,
         "convos": convos,
+        "new_chat_form": NewChatForm(),
     }
 
     return render(request, "select.html", context)
+
+
+def new_chat(request):
+    assert request.method == "POST"
+    form = NewChatForm(request.POST)
+    assert form.is_valid()
+    title = form.cleaned_data["title"]
+
+    curr_user = _get_current_user()
+    new_convo = Conversation.objects.create(title=title, user=curr_user)
+    history_file_path = f"{curr_user.id}_{hash(title)}.txt"
+    new_convo.history_file_path.save(history_file_path, ContentFile("".encode()), True)
+
+    return redirect(f"/chat/{new_convo.id}")
