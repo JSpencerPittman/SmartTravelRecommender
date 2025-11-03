@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat</title>
+</head>
+<body>
+    <h1>Chat</h1>
+    <h1>User</h1>
+    <p>{{ first_name }} {{ last_name }}</p>
+    <h2>Conversations</h2>
+    {% for convo_id, convo_title in convos %}
+    <a href="{% url 'chat' convo_id %}">{{ convo_title }}</a>
+    {% endfor %}
+</body>
+</html>
