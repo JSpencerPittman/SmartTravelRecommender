@@ -9,5 +9,11 @@
     <p>{{ first_name }} {{ last_name }}</p>
     <h2>Conversation</h2>
     <p>{{ conversation }}</p>
+    <h2>Message</h2>
+    <form action="{% url 'message' chat_id %}" method="post">
+        {% csrf_token %}
+        {{ message_form }}
+        <button type="submit">Send</button>
+    </form>
 </body>
 </html>

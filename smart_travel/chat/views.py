@@ -1,8 +1,12 @@
 from django.shortcuts import render, redirect
 from chat.models import User, Conversation
 from django.core.files.base import ContentFile
-from chat.forms import NewChatForm
+from chat.forms import NewChatForm, MessageForm
 from typing import Optional, Any
+from pathlib import Path
+
+
+PROJECT_DIR = Path(__file__).parent.parent
 
 
 def _get_current_user() -> User:
@@ -40,6 +44,8 @@ def chat(request, chat_id: int):
         "first_name": curr_user.first_name,
         "last_name": curr_user.last_name,
         "conversation": text,
+        "message_form": MessageForm(),
+        "chat_id": chat_id,
     }
 
     return render(request, "chat.html", context)
@@ -72,3 +78,19 @@ def new_chat(request):
     new_convo.history_file_path.save(history_file_path, ContentFile("".encode()), True)
 
     return redirect(f"/chat/{new_convo.id}")
+
+
+def message(request, chat_id: int):
+    assert request.method == "POST"
+    form = MessageForm(request.POST)
+    assert form.is_valid()
+    message_text = form.cleaned_data["message"]
+
+    curr_user = _get_current_user()
+    convo = _find_convos(curr_user, chat_id).first()
+
+    file_path = PROJECT_DIR / Path(convo.history_file_path.name)
+    with open(file_path, "a") as conv_file:
+        conv_file.write(message_text)
+
+    return redirect(f"/chat/{chat_id}")
