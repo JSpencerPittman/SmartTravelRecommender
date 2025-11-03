@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Optional
 
 from django.db import models
 
@@ -17,6 +17,9 @@ class Conversation(models.Model):
     class Message(object):
         message: str
         is_user: bool
+
+        def __str__(self) -> str:
+            return f"### {'USER' if self.is_user else 'Agent'}\n{self.message}\n"
 
     MEDIA_DIR = "media/conversations"
 
@@ -64,11 +67,10 @@ class Conversation(models.Model):
 
         return messages
 
-    def add_message(self, text: str):
+    def add_message(self, message: Message):
         self._ensure_file_exists()
-        text = f"\n### User\n{text}"
         with open(self.abs_path, "a") as conv_file:
-            conv_file.write(text)
+            conv_file.write(str(message))
 
     def _ensure_file_exists(self):
         if self.abs_path.exists():

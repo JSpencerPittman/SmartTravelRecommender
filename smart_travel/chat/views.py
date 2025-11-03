@@ -1,10 +1,13 @@
+import threading
+import time
 from pathlib import Path
 from typing import Any, Optional
 
 from chat.forms import MessageForm, NewChatForm
 from chat.models import Conversation, User
 from django.db.models.query import QuerySet  # type: ignore
-from django.shortcuts import redirect, render, HttpResponseRedirect  # type: ignore
+from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
+from lorem_text import lorem  # type: ignore
 
 PROJECT_DIR = Path(__file__).parent.parent
 
@@ -24,6 +27,16 @@ def _get_current_user() -> User:
     # TODO: Use session context to find current user
     user = User.objects.first()
     return user
+
+
+def _submit_message_to_agent(_: str, chat_id: int):
+    # TODO: Replace with real LLM agent API
+    time.sleep(1)
+    response = Conversation.Message(lorem.paragraph(), False)
+
+    curr_user = _get_current_user()
+    convo: Conversation = _find_convos(curr_user, chat_id).first()
+    convo.add_message(response)
 
 
 def _find_convos(u: User, chat_id: Optional[int] = None) -> QuerySet:
@@ -106,7 +119,7 @@ def new_chat(request):
     return redirect(f"/chat/{new_convo.id}")
 
 
-def message(request, chat_id: int):
+def new_user_message(request, chat_id: int):
     if request.method != "POST":
         return _handle_error(request, "Invalid new chat request.")
 
@@ -114,10 +127,15 @@ def message(request, chat_id: int):
     if not form.is_valid():
         return _handle_error(request, "Invalid message request.")
 
-    message = form.cleaned_data["message"]
+    message = Conversation.Message(form.cleaned_data["message"], True)
 
     curr_user = _get_current_user()
     convo: Conversation = _find_convos(curr_user, chat_id).first()
     convo.add_message(message)
+
+    thread = threading.Thread(
+        target=_submit_message_to_agent, args=(message.message, convo.id), daemon=True
+    )
+    thread.start()
 
     return redirect(f"/chat/{chat_id}")
