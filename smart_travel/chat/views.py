@@ -59,7 +59,7 @@ def chat(request, chat_id: int):
         "chat_id": chat_id,
         "first_name": curr_user.first_name,
         "last_name": curr_user.last_name,
-        "conversation": convo.retrieve(),
+        "messages": convo.retrieve(),
         "message_form": MessageForm(),
     }
 

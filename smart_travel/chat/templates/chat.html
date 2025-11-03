@@ -5,10 +5,13 @@
 </head>
 <body>
     <h1>Chat</h1>
+    <a href="{% url 'select' %}">Back</a>
     <h1>User</h1>
     <p>{{ first_name }} {{ last_name }}</p>
     <h2>Conversation</h2>
-    <p>{{ conversation }}</p>
+    {% for message in messages %}
+        <p>{% if message.is_user %}User{% else %}Agent{% endif %}: {{ message.message }}</p>
+    {% endfor %}
     <h2>Message</h2>
     <form action="{% url 'message' chat_id %}" method="post">
         {% csrf_token %}
