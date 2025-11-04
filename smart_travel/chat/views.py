@@ -3,13 +3,16 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from chat.forms import MessageForm, NewChatForm
-from chat.models import Conversation, User
 from django.db.models.query import QuerySet  # type: ignore
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
-from lorem_text import lorem  # type: ignore
+
+from chat.forms import MessageForm, NewChatForm
+from chat.models import Conversation, User
+from chatbot.travel_chatbot import TravelChatbot
 
 PROJECT_DIR = Path(__file__).parent.parent
+
+chatbot = TravelChatbot()
 
 
 def _get_current_user(request) -> User:
@@ -31,12 +34,10 @@ def _get_current_user(request) -> User:
 
 
 def _submit_message_to_agent(request,_: str, chat_id: int):
-    # TODO: Replace with real LLM agent API
-    time.sleep(1)
-    response = Conversation.Message(lorem.paragraph(), False)
 
     curr_user = _get_current_user(request)
     convo: Conversation = _find_convos(curr_user, chat_id).first()
+    response = Conversation.Message(convo.retrieve(), False)
     convo.add_message(response)
 
 
