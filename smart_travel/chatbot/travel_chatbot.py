@@ -30,6 +30,8 @@ class TravelChatbot:
     def generate_response(self, messages: Iterable[Conversation.Message]) -> str:
         return self._client.responses.create(
             model=self._model,
+            temperature=self._temperature,
+            top_p=self._top_p,
             tools=[{"type": "web_search"}],
             instructions=self.SYSTEM_PROMPT,
             messages=[
