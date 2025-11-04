@@ -30,12 +30,12 @@ def _get_current_user(request) -> User:
     return user
 
 
-def _submit_message_to_agent(_: str, chat_id: int):
+def _submit_message_to_agent(request,_: str, chat_id: int):
     # TODO: Replace with real LLM agent API
     time.sleep(1)
     response = Conversation.Message(lorem.paragraph(), False)
 
-    curr_user = _get_current_user()
+    curr_user = _get_current_user(request)
     convo: Conversation = _find_convos(curr_user, chat_id).first()
     convo.add_message(response)
 
@@ -135,7 +135,7 @@ def new_user_message(request, chat_id: int):
     convo.add_message(message)
 
     thread = threading.Thread(
-        target=_submit_message_to_agent, args=(message.message, convo.id), daemon=True
+        target=_submit_message_to_agent, args=(request,message.message, convo.id), daemon=True
     )
     thread.start()
 
