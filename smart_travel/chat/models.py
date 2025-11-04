@@ -10,6 +10,8 @@ PROJECT_DIR = Path(__file__).parent.parent
 class User(models.Model):
     first_name = models.CharField(max_length=25)
     last_name = models.CharField(max_length=25)
+    user_name = models.CharField(max_length=25)
+    password = models.CharField(max_length=255,default="pass12")
 
 
 class Conversation(models.Model):
