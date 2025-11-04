@@ -12,7 +12,7 @@ from lorem_text import lorem  # type: ignore
 PROJECT_DIR = Path(__file__).parent.parent
 
 
-def _get_current_user() -> User:
+def _get_current_user(request) -> User:
     """
     Retrieve the current user.
 
@@ -25,7 +25,8 @@ def _get_current_user() -> User:
     """
 
     # TODO: Use session context to find current user
-    user = User.objects.first()
+    user_id=request.session.get('user_id')
+    user=User.objects.get(id=user_id)
     return user
 
 
@@ -65,7 +66,7 @@ def _handle_error(request, message: str) -> HttpResponseRedirect:
 
 
 def chat(request, chat_id: int):
-    curr_user = _get_current_user()
+    curr_user = _get_current_user(request)
     convo: Conversation = _find_convos(curr_user, chat_id).first()
 
     context = {
@@ -80,7 +81,7 @@ def chat(request, chat_id: int):
 
 
 def select(request):
-    curr_user = _get_current_user()
+    curr_user = _get_current_user(request)
 
     convos = [(convo.id, convo.title) for convo in _find_convos(curr_user)]
 
@@ -107,7 +108,7 @@ def new_chat(request):
     if not form.is_valid():
         return _handle_error(request, "Invalid new chat request.")
 
-    curr_user = _get_current_user()
+    curr_user = _get_current_user(request)
     title = form.cleaned_data["title"]
 
     # Create new conversation
@@ -129,7 +130,7 @@ def new_user_message(request, chat_id: int):
 
     message = Conversation.Message(form.cleaned_data["message"], True)
 
-    curr_user = _get_current_user()
+    curr_user = _get_current_user(request)
     convo: Conversation = _find_convos(curr_user, chat_id).first()
     convo.add_message(message)
 
