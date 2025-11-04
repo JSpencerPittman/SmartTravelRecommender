@@ -30,6 +30,10 @@ def login_view(request):
            try: 
             user = User.objects.get(user_name=user_name, password=password)
             if user is not None:
+                request.session['user_id'] = user.id
+                request.session['user_name'] = user.user_name
+                request.session['first_name'] = user.first_name
+                request.session['last_name'] = user.last_name
                 return redirect('select')
            except User.DoesNotExist:
                messages.error(request, "Invalid username or password")
