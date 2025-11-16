@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from .forms import SignUpForm, LoginForm
 from accounts.models import AccountModel
 from django.contrib import messages  # type: ignore
+from django.contrib.auth.hashers import check_password
 
 
 def signup_view(request):
@@ -26,10 +27,10 @@ def login_view(request):
             user_name = form.cleaned_data["user_id"]
             password = form.cleaned_data["password"]
             try:
-                account = AccountModel.objects.get(
-                    user_name=user_name, password=password
-                )
-                if account is not None:
+                account = AccountModel.objects.get(user_name=user_name)
+                if account is not None and check_password(
+                    password, account.password_hash
+                ):
                     request.session["user_id"] = account.id
                     request.session["user_name"] = account.user_name
                     request.session["first_name"] = account.first_name
