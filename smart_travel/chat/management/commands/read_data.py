@@ -1,11 +1,12 @@
 from django.core.management.base import BaseCommand
-from chat.models import User, Conversation
+from chat.models import Conversation
+from accounts.models import AccountModel
 
 
 class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         print("Users:")
-        for user in User.objects.all():
+        for user in AccountModel.objects.all():
             print(f"User: {user.first_name} {user.last_name}")
 
         print("Conversations:")

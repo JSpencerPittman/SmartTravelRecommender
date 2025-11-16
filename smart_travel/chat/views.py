@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from chat.forms import MessageForm, NewChatForm
-from chat.models import Conversation, User
+from chat.models import Conversation
+from accounts.models import AccountModel
 from django.db.models.query import QuerySet  # type: ignore
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 from lorem_text import lorem  # type: ignore
@@ -12,25 +13,26 @@ from lorem_text import lorem  # type: ignore
 PROJECT_DIR = Path(__file__).parent.parent
 
 
-def _get_current_user(request) -> User:
+def _get_current_user(request) -> AccountModel:
     """
     Retrieve the current user.
 
     Note:
-        For development purposes this returns the first entry in the User
+        For development purposes this returns the first entry in the AccountModel
         table.
 
     Returns:
-        User: Current User
+        AccountModel: Current AccountModel
     """
 
-    # TODO: Use session context to find current user
-    user_id=request.session.get('user_id')
-    user=User.objects.get(id=user_id)
-    return user
+    # TODO: Debug Only
+    # user_id=request.session.get('user_id')
+    # user=AccountModel.objects.get(id=user_id)
+    # return user
+    return AccountModel.objects.first()
 
 
-def _submit_message_to_agent(request,_: str, chat_id: int):
+def _submit_message_to_agent(request, _: str, chat_id: int):
     # TODO: Replace with real LLM agent API
     time.sleep(1)
     response = Conversation.Message(lorem.paragraph(), False)
@@ -40,12 +42,12 @@ def _submit_message_to_agent(request,_: str, chat_id: int):
     convo.add_message(response)
 
 
-def _find_convos(u: User, chat_id: Optional[int] = None) -> QuerySet:
+def _find_convos(a: AccountModel, chat_id: Optional[int] = None) -> QuerySet:
     """
     Filter Conversations using provided criteria.
 
     Args:
-        u (User): Filter our conversations not tied to user.
+        a (AccountModel): Filter our conversations not tied to user.
         chat_id (Optional[int], optional): Find the conversation with the
             provided ID. Defaults to None.
 
@@ -53,7 +55,7 @@ def _find_convos(u: User, chat_id: Optional[int] = None) -> QuerySet:
         QuerySet: Filtered conversations.
     """
 
-    search_query: dict[str, Any] = {"user": u}
+    search_query: dict[str, Any] = {"user": a}
     if chat_id is not None:
         search_query["id"] = chat_id
 
@@ -135,7 +137,9 @@ def new_user_message(request, chat_id: int):
     convo.add_message(message)
 
     thread = threading.Thread(
-        target=_submit_message_to_agent, args=(request,message.message, convo.id), daemon=True
+        target=_submit_message_to_agent,
+        args=(request, message.message, convo.id),
+        daemon=True,
     )
     thread.start()
 

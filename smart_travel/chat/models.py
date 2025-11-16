@@ -4,14 +4,9 @@ from typing import Optional
 
 from django.db import models
 
+from accounts.models import AccountModel
+
 PROJECT_DIR = Path(__file__).parent.parent
-
-
-class User(models.Model):
-    first_name = models.CharField(max_length=25)
-    last_name = models.CharField(max_length=25)
-    user_name = models.CharField(max_length=25)
-    password = models.CharField(max_length=255,default="pass12")
 
 
 class Conversation(models.Model):
@@ -26,7 +21,7 @@ class Conversation(models.Model):
     MEDIA_DIR = "media/conversations"
 
     title = models.CharField(max_length=50)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(AccountModel, on_delete=models.CASCADE)
     file_name = models.CharField(max_length=200)
 
     @property
