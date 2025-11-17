@@ -9,7 +9,7 @@ from accounts.models import AccountModel
 PROJECT_DIR = Path(__file__).parent.parent
 
 
-class Conversation(models.Model):
+class ConversationModel(models.Model):
     @dataclass
     class Message(object):
         message: str
@@ -26,7 +26,7 @@ class Conversation(models.Model):
 
     @property
     def abs_path(self) -> Path:
-        return Path(PROJECT_DIR) / Conversation.MEDIA_DIR / self.file_name
+        return Path(PROJECT_DIR) / ConversationModel.MEDIA_DIR / self.file_name
 
     def retrieve(self) -> list[Message]:
         def parse_divider(line: str) -> Optional[bool]:
@@ -54,13 +54,13 @@ class Conversation(models.Model):
         while (line := next(line_iter, None)) is not None:
             if (next_is_user := parse_divider(line)) is not None:
                 if len(message):
-                    messages.append(Conversation.Message(message, is_user))
+                    messages.append(ConversationModel.Message(message, is_user))
                 is_user = next_is_user
                 message = ""
             else:
                 message += line
         if len(message):
-            messages.append(Conversation.Message(message, is_user))
+            messages.append(ConversationModel.Message(message, is_user))
 
         return messages
 

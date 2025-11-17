@@ -1,4 +1,4 @@
 from django.contrib import admin
-from chat.models import Conversation
+from chat.models import ConversationModel
 
-admin.site.register(Conversation)
+admin.site.register(ConversationModel)
