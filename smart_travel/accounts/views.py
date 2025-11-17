@@ -1,8 +1,6 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect  # type: ignore
 from .forms import SignUpForm, LoginForm
 from accounts.models import AccountModel
-from django.contrib import messages  # type: ignore
-from django.contrib.auth.hashers import check_password
 
 
 def signup_view(request):
@@ -11,9 +9,6 @@ def signup_view(request):
         if form.is_valid():
             account = form.save()
             request.session["user_id"] = account.id
-            request.session["user_name"] = account.user_name
-            request.session["first_name"] = account.first_name
-            request.session["last_name"] = account.last_name
             return redirect("select")
     else:
         form = SignUpForm()
@@ -26,19 +21,13 @@ def login_view(request):
         if form.is_valid():
             user_name = form.cleaned_data["user_id"]
             password = form.cleaned_data["password"]
-            try:
-                account = AccountModel.objects.get(user_name=user_name)
-                if account is not None and check_password(
-                    password, account.password_hash
-                ):
-                    request.session["user_id"] = account.id
-                    request.session["user_name"] = account.user_name
-                    request.session["first_name"] = account.first_name
-                    request.session["last_name"] = account.last_name
-                    return redirect("select")
-            except AccountModel.DoesNotExist:
-                messages.error(request, "Invalid username or password")
-
+            matches = AccountModel.find_matching_user(
+                user_name=user_name, password=password
+            )
+            if len(matches) == 1:
+                request.session["user_id"] = matches[0].id
+                return redirect("select")
     else:
         form = LoginForm()
+
     return render(request, "login.html", {"form": form})

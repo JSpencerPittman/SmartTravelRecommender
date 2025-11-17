@@ -16,25 +16,6 @@ Auxillary
 """
 
 
-def _get_current_user(request) -> AccountModel:
-    """
-    Retrieve the current user.
-
-    Note:
-        For development purposes this returns the first entry in the AccountModel
-        table.
-
-    Returns:
-        AccountModel: Current AccountModel
-    """
-
-    # TODO: Debug Only
-    # user_id=request.session.get('user_id')
-    # user=AccountModel.objects.get(id=user_id)
-    # return user
-    return AccountModel.objects.first()
-
-
 def _submit_message_to_agent(request, _: str, chat_id: int):
     # TODO: Replace with real LLM agent API
     time.sleep(1)
@@ -53,7 +34,8 @@ Page Loaders
 
 
 def load_chat_selection(request):
-    curr_user = _get_current_user(request)
+    curr_user = AccountModel.get_current_user(request, debug=True)
+    assert curr_user is not None
 
     convos = [
         (convo.id, convo.title)
@@ -76,10 +58,11 @@ def load_chat_selection(request):
 
 
 def load_chat(request, chat_id: int):
-    curr_user = _get_current_user(request)
+    curr_user = AccountModel.get_current_user(request, debug=True)
+    assert curr_user is not None
     convo: ConversationModel = ConversationModel.find_conversation(
-        curr_user, chat_id
-    ).first()
+        user=curr_user, chat_id=chat_id
+    )[0]
 
     context = {
         "chat_id": chat_id,
@@ -105,14 +88,9 @@ def handle_new_chat(request):
     if not form.is_valid():
         return _handle_error(request, "Invalid new chat request.")
 
-    curr_user = _get_current_user(request)
-    title = form.cleaned_data["title"]
-
-    # Create new conversation
-    file_name = f"{curr_user.id}_{hash(title)}.txt"
-    new_convo = ConversationModel.objects.create(
-        title=title, user=curr_user, file_name=file_name
-    )
+    curr_user = AccountModel.get_current_user(request, debug=True)
+    assert curr_user is not None
+    new_convo = ConversationModel.create(form.cleaned_data["title"], curr_user)
 
     return redirect(f"/chat/{new_convo.id}")
 
@@ -127,10 +105,11 @@ def handle_user_message(request, chat_id: int):
 
     message = Message(form.cleaned_data["message"], True)
 
-    curr_user = _get_current_user(request)
-    convo: ConversationModel = ConversationModel.find_conversation(
-        curr_user, chat_id
-    ).first()
+    curr_user = AccountModel.get_current_user(request, True)
+    assert curr_user is not None
+    convo: ConversationModel = ConversationModel.find_conversation(curr_user, chat_id)[
+        0
+    ]
     convo.save_message(message)
 
     thread = threading.Thread(
@@ -144,8 +123,9 @@ def handle_user_message(request, chat_id: int):
 
 
 def handle_agent_message(request, chat_id: int, message: Message):
-    curr_user = _get_current_user(request)
-    convo: ConversationModel = ConversationModel.find_conversation(
-        curr_user, chat_id
-    ).first()
+    curr_user = AccountModel.get_current_user(request, debug=True)
+    assert curr_user is not None
+    convo: ConversationModel = ConversationModel.find_conversation(curr_user, chat_id)[
+        0
+    ]
     convo.save_message(message)

@@ -1,6 +1,5 @@
-from django import forms
+from django import forms  # type: ignore
 from accounts.models import AccountModel
-from django.contrib.auth.hashers import make_password, check_password
 
 
 # Signup Form
@@ -21,12 +20,13 @@ class SignUpForm(forms.ModelForm):
             raise forms.ValidationError("Passwords do not match.")
         return cleaned_data
 
-    def save(self, commit: bool = True):
-        account = super().save(commit=False)
-        account.password_hash = make_password(self.cleaned_data["password"])
-        if commit:
-            account.save()
-        return account
+    def save(self, _: bool = True) -> AccountModel:
+        return AccountModel.create(
+            self.cleaned_data["first_name"],
+            self.cleaned_data["last_name"],
+            self.cleaned_data["user_name"],
+            self.cleaned_data["password"],
+        )
 
 
 class LoginForm(forms.Form):
