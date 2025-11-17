@@ -1,16 +1,19 @@
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
 
 from chat.forms import MessageForm, NewChatForm
-from chat.models import ConversationModel
+from chat.models import ConversationModel, Message
 from accounts.models import AccountModel
-from django.db.models.query import QuerySet  # type: ignore
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 from lorem_text import lorem  # type: ignore
 
 PROJECT_DIR = Path(__file__).parent.parent
+
+
+"""
+Auxillary
+"""
 
 
 def _get_current_user(request) -> AccountModel:
@@ -35,31 +38,8 @@ def _get_current_user(request) -> AccountModel:
 def _submit_message_to_agent(request, _: str, chat_id: int):
     # TODO: Replace with real LLM agent API
     time.sleep(1)
-    response = ConversationModel.Message(lorem.paragraph(), False)
-
-    curr_user = _get_current_user(request)
-    convo: ConversationModel = _find_convos(curr_user, chat_id).first()
-    convo.add_message(response)
-
-
-def _find_convos(a: AccountModel, chat_id: Optional[int] = None) -> QuerySet:
-    """
-    Filter Conversations using provided criteria.
-
-    Args:
-        a (AccountModel): Filter our conversations not tied to user.
-        chat_id (Optional[int], optional): Find the conversation with the
-            provided ID. Defaults to None.
-
-    Returns:
-        QuerySet: Filtered conversations.
-    """
-
-    search_query: dict[str, Any] = {"user": a}
-    if chat_id is not None:
-        search_query["id"] = chat_id
-
-    return ConversationModel.objects.filter(**search_query)
+    response = Message(lorem.paragraph(), False)
+    handle_agent_message(response, chat_id, response)
 
 
 def _handle_error(request, message: str) -> HttpResponseRedirect:
@@ -67,25 +47,18 @@ def _handle_error(request, message: str) -> HttpResponseRedirect:
     return redirect("/chat")
 
 
-def chat(request, chat_id: int):
-    curr_user = _get_current_user(request)
-    convo: ConversationModel = _find_convos(curr_user, chat_id).first()
-
-    context = {
-        "chat_id": chat_id,
-        "first_name": curr_user.first_name,
-        "last_name": curr_user.last_name,
-        "messages": convo.retrieve(),
-        "message_form": MessageForm(),
-    }
-
-    return render(request, "chat.html", context)
+"""
+Page Loaders
+"""
 
 
-def select(request):
+def load_chat_selection(request):
     curr_user = _get_current_user(request)
 
-    convos = [(convo.id, convo.title) for convo in _find_convos(curr_user)]
+    convos = [
+        (convo.id, convo.title)
+        for convo in ConversationModel.find_conversation(curr_user)
+    ]
 
     error = request.session.get("error", None)
     if "error" in request.session:
@@ -102,7 +75,29 @@ def select(request):
     return render(request, "select.html", context)
 
 
-def new_chat(request):
+def load_chat(request, chat_id: int):
+    curr_user = _get_current_user(request)
+    convo: ConversationModel = ConversationModel.find_conversation(
+        curr_user, chat_id
+    ).first()
+
+    context = {
+        "chat_id": chat_id,
+        "first_name": curr_user.first_name,
+        "last_name": curr_user.last_name,
+        "messages": convo.retrieve_messages(),
+        "message_form": MessageForm(),
+    }
+
+    return render(request, "chat.html", context)
+
+
+"""
+Event Handlers
+"""
+
+
+def handle_new_chat(request):
     if request.method != "POST":
         return _handle_error(request, "Invalid new chat request.")
 
@@ -122,7 +117,7 @@ def new_chat(request):
     return redirect(f"/chat/{new_convo.id}")
 
 
-def new_user_message(request, chat_id: int):
+def handle_user_message(request, chat_id: int):
     if request.method != "POST":
         return _handle_error(request, "Invalid new chat request.")
 
@@ -130,11 +125,13 @@ def new_user_message(request, chat_id: int):
     if not form.is_valid():
         return _handle_error(request, "Invalid message request.")
 
-    message = ConversationModel.Message(form.cleaned_data["message"], True)
+    message = Message(form.cleaned_data["message"], True)
 
     curr_user = _get_current_user(request)
-    convo: ConversationModel = _find_convos(curr_user, chat_id).first()
-    convo.add_message(message)
+    convo: ConversationModel = ConversationModel.find_conversation(
+        curr_user, chat_id
+    ).first()
+    convo.save_message(message)
 
     thread = threading.Thread(
         target=_submit_message_to_agent,
@@ -144,3 +141,11 @@ def new_user_message(request, chat_id: int):
     thread.start()
 
     return redirect(f"/chat/{chat_id}")
+
+
+def handle_agent_message(request, chat_id: int, message: Message):
+    curr_user = _get_current_user(request)
+    convo: ConversationModel = ConversationModel.find_conversation(
+        curr_user, chat_id
+    ).first()
+    convo.save_message(message)

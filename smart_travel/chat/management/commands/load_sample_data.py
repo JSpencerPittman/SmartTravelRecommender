@@ -1,6 +1,7 @@
-from django.core.management.base import BaseCommand
-from chat.models import ConversationModel
 from accounts.models import AccountModel
+from chat.models import ConversationModel
+from django.core.management.base import BaseCommand  # type: ignore
+from django.utils import timezone  # type: ignore
 
 
 class Command(BaseCommand):
@@ -19,5 +20,6 @@ class Command(BaseCommand):
             title="New Convo",
             user=new_user,
             file_name="new_convo.txt",
+            time_of_last_message=timezone.now(),
         )
-        new_convo.add_message("This is a new conversations!")
+        new_convo.save_message("This is a new conversations!")
