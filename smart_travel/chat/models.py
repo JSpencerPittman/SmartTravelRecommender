@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Optional
 import hashlib
 
-from accounts.models import AccountModel
+from accounts.models import AccountModel 
 from django.db import models  # type: ignore
 from django.utils import timezone  # type: ignore
 
@@ -139,7 +139,8 @@ class ConversationModel(models.Model):
 
     @staticmethod
     def find_conversation(
-        user: Optional[AccountModel] = None, chat_id: Optional[int] = None
+        user: Optional[AccountModel] = None, chat_id: Optional[int] = None,
+        limit: Optional[int] = 5
     ) -> list["ConversationModel"]:
         """
         Find conversations matching the provided filters.
@@ -161,7 +162,15 @@ class ConversationModel(models.Model):
 
         print("SEARCH QUERY:", search_query)
 
-        return list(ConversationModel.objects.filter(**search_query))
+        
+        if chat_id is None:
+            return list(ConversationModel.objects.filter(**search_query)
+                        .order_by('-time_of_last_message')
+                        [:limit]
+                        )
+        else:
+            return list(ConversationModel.objects.filter(**search_query))
+        
 
     def retrieve_messages(self) -> list[Message]:
         """
@@ -190,6 +199,7 @@ class ConversationModel(models.Model):
         with open(self.abs_path, "a") as conv_file:
             conv_file.write(message.serialize())
         self.time_of_last_message = timezone.now()
+        self.save()
 
     def _ensure_file_exists(self):
         """

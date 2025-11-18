@@ -1,3 +1,8 @@
+{% load static %}
+
+<link rel="stylesheet" href="{% static '/style.css' %}">
+
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -7,10 +12,20 @@
     <h1>Chat</h1>
     <h1>User</h1>
     <p>{{ first_name }} {{ last_name }}</p>
-    <h2>Conversations</h2>
+    <h2> Conversations</h2>
+    <div class="convo-box">
     {% for convo_id, convo_title in convos %}
-    <a href="{% url 'chat' convo_id %}">{{ convo_title }}</a>
+        <a href="{% url 'chat' convo_id %}">{{ convo_title }}</a>
     {% endfor %}
+</div>
+{% if limit < totalConvos %}
+<form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="limit" value="{{ limit|default:5 }}">
+    <button type="submit">Load More</button>
+</form>
+{% endif %}
+
     <h2>New Conversation?</h2>
     <form action="{% url 'new_chat' %}" method="post">
         {% csrf_token %}
