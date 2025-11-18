@@ -7,7 +7,6 @@ from chat.models import ConversationModel, Message
 from accounts.models import AccountModel
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 from lorem_text import lorem  # type: ignore
-from django.utils import timezone
 PROJECT_DIR = Path(__file__).parent.parent
 
 
@@ -36,7 +35,7 @@ Page Loaders
 def load_chat_selection(request):
     curr_user = AccountModel.get_current_user(request, debug=True)
     assert curr_user is not None
-    limit = 5
+    limit = 5 #intital count of convos to be displayed
     if request.method == "POST":
         limit = int(request.POST.get("limit", 5))
         limit += 5          # output additional 5 convos for every load more request made
@@ -84,10 +83,7 @@ def load_chat(request, chat_id: int):
 """
 Event Handlers
 """
-def retreive_more_convos(request):
 
-
-    return render
 def handle_new_chat(request):
     if request.method != "POST":
         return _handle_error(request, "Invalid new chat request.")
