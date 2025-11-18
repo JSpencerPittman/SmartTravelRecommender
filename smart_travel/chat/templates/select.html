@@ -17,6 +17,12 @@
         {{ new_chat_form }}
         <button type="submit">New Conversation</button>
     </form>
+    <div style="margin-top: 50px;">
+        <form action="{% url 'logout' %}" method="post">
+            {% csrf_token %}
+            <button type="submit">Logout</button>
+        </form>
+    </div>
     {% if error %}
     <h2>Error</h2>
     <p>{{ error }}</p>
