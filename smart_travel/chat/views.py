@@ -1,64 +1,28 @@
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
-
-from django.db.models.query import QuerySet  # type: ignore
-from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 
 from chat.forms import MessageForm, NewChatForm
-from chat.models import Conversation, User
+from chat.models import ConversationModel, Message
+from accounts.models import AccountModel
+from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
+from lorem_text import lorem  # type: ignore
 from chatbot.travel_chatbot import TravelChatbot
-
 PROJECT_DIR = Path(__file__).parent.parent
 
 chatbot = TravelChatbot()
 
 
-def _get_current_user(request) -> User:
-    """
-    Retrieve the current user.
-
-    Note:
-        For development purposes this returns the first entry in the User
-        table.
-
-    Returns:
-        User: Current User
-    """
-
-    # TODO: Use session context to find current user
-    user_id=request.session.get('user_id')
-    user=User.objects.get(id=user_id)
-    return user
+"""
+Auxillary
+"""
 
 
-def _submit_message_to_agent(request,_: str, chat_id: int):
-
-    curr_user = _get_current_user(request)
-    convo: Conversation = _find_convos(curr_user, chat_id).first()
-    response = Conversation.Message(convo.retrieve(), False)
-    convo.add_message(response)
-
-
-def _find_convos(u: User, chat_id: Optional[int] = None) -> QuerySet:
-    """
-    Filter Conversations using provided criteria.
-
-    Args:
-        u (User): Filter our conversations not tied to user.
-        chat_id (Optional[int], optional): Find the conversation with the
-            provided ID. Defaults to None.
-
-    Returns:
-        QuerySet: Filtered conversations.
-    """
-
-    search_query: dict[str, Any] = {"user": u}
-    if chat_id is not None:
-        search_query["id"] = chat_id
-
-    return Conversation.objects.filter(**search_query)
+def _submit_message_to_agent(request, _: str, chat_id: int):
+    # TODO: Replace with real LLM agent API
+    time.sleep(1)
+    response = Message(lorem.paragraph(), False)
+    handle_agent_message(response, chat_id, response)
 
 
 def _handle_error(request, message: str) -> HttpResponseRedirect:
@@ -66,25 +30,23 @@ def _handle_error(request, message: str) -> HttpResponseRedirect:
     return redirect("/chat")
 
 
-def chat(request, chat_id: int):
-    curr_user = _get_current_user(request)
-    convo: Conversation = _find_convos(curr_user, chat_id).first()
-
-    context = {
-        "chat_id": chat_id,
-        "first_name": curr_user.first_name,
-        "last_name": curr_user.last_name,
-        "messages": convo.retrieve(),
-        "message_form": MessageForm(),
-    }
-
-    return render(request, "chat.html", context)
+"""
+Page Loaders
+"""
 
 
-def select(request):
-    curr_user = _get_current_user(request)
-
-    convos = [(convo.id, convo.title) for convo in _find_convos(curr_user)]
+def load_chat_selection(request):
+    curr_user = AccountModel.get_current_user(request, debug=True)
+    assert curr_user is not None
+    limit = 5 #intital count of convos to be displayed
+    if request.method == "POST":
+        limit = int(request.POST.get("limit", 5))
+        limit += 5          # output additional 5 convos for every load more request made
+    convos = [
+        (convo.id, convo.title)
+        for convo in ConversationModel.find_conversation(curr_user, limit = limit)
+    ]
+    totalConvos = ConversationModel.objects.filter(user = curr_user).count()
 
     error = request.session.get("error", None)
     if "error" in request.session:
@@ -96,12 +58,36 @@ def select(request):
         "convos": convos,
         "new_chat_form": NewChatForm(),
         "error": error,
-    }
+        "totalConvos": totalConvos,
+        "limit": limit
 
+    }
     return render(request, "select.html", context)
 
 
-def new_chat(request):
+def load_chat(request, chat_id: int):
+    curr_user = AccountModel.get_current_user(request, debug=True)
+    assert curr_user is not None
+    convo: ConversationModel = ConversationModel.find_conversation(
+        user=curr_user, chat_id=chat_id
+    )[0]
+
+    context = {
+        "chat_id": chat_id,
+        "first_name": curr_user.first_name,
+        "last_name": curr_user.last_name,
+        "messages": convo.retrieve_messages(),
+        "message_form": MessageForm(),
+    }
+
+    return render(request, "chat.html", context)
+
+
+"""
+Event Handlers
+"""
+
+def handle_new_chat(request):
     if request.method != "POST":
         return _handle_error(request, "Invalid new chat request.")
 
@@ -109,19 +95,14 @@ def new_chat(request):
     if not form.is_valid():
         return _handle_error(request, "Invalid new chat request.")
 
-    curr_user = _get_current_user(request)
-    title = form.cleaned_data["title"]
-
-    # Create new conversation
-    file_name = f"{curr_user.id}_{hash(title)}.txt"
-    new_convo = Conversation.objects.create(
-        title=title, user=curr_user, file_name=file_name
-    )
+    curr_user = AccountModel.get_current_user(request, debug=True)
+    assert curr_user is not None
+    new_convo = ConversationModel.create(form.cleaned_data["title"], curr_user)
 
     return redirect(f"/chat/{new_convo.id}")
 
 
-def new_user_message(request, chat_id: int):
+def handle_user_message(request, chat_id: int):
     if request.method != "POST":
         return _handle_error(request, "Invalid new chat request.")
 
@@ -129,15 +110,29 @@ def new_user_message(request, chat_id: int):
     if not form.is_valid():
         return _handle_error(request, "Invalid message request.")
 
-    message = Conversation.Message(form.cleaned_data["message"], True)
+    message = Message(form.cleaned_data["message"], True)
 
-    curr_user = _get_current_user(request)
-    convo: Conversation = _find_convos(curr_user, chat_id).first()
-    convo.add_message(message)
+    curr_user = AccountModel.get_current_user(request, True)
+    assert curr_user is not None
+    convo: ConversationModel = ConversationModel.find_conversation(curr_user, chat_id)[
+        0
+    ]
+    convo.save_message(message)
 
     thread = threading.Thread(
-        target=_submit_message_to_agent, args=(request,message.message, convo.id), daemon=True
+        target=_submit_message_to_agent,
+        args=(request, message.message, convo.id),
+        daemon=True,
     )
     thread.start()
 
     return redirect(f"/chat/{chat_id}")
+
+
+def handle_agent_message(request, chat_id: int, message: Message):
+    curr_user = AccountModel.get_current_user(request, debug=True)
+    assert curr_user is not None
+    convo: ConversationModel = ConversationModel.find_conversation(curr_user, chat_id)[
+        0
+    ]
+    convo.save_message(message)
