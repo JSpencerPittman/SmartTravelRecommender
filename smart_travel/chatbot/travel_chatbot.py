@@ -7,7 +7,7 @@ from typing import Final
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from chat.views import Conversation
+from chat.views import Message
 
 load_dotenv()
 
@@ -27,7 +27,7 @@ class TravelChatbot:
         self._temperature: float = temperature
         self._top_p: float = top_p
 
-    def generate_response(self, messages: Iterable[Conversation.Message]) -> str:
+    def generate_response(self, messages: Iterable[Message]) -> str:
         return self._client.responses.create(
             model=self._model,
             temperature=self._temperature,
