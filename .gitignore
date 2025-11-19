@@ -15,3 +15,5 @@ __pycache__
 
 # MacOS
 .DS_Store
+
+.env
