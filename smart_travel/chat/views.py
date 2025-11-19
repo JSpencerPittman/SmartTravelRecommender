@@ -7,7 +7,10 @@ from chat.models import ConversationModel, Message
 from accounts.models import AccountModel
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 from lorem_text import lorem  # type: ignore
+from chatbot.travel_chatbot import TravelChatbot
 PROJECT_DIR = Path(__file__).parent.parent
+
+chatbot = TravelChatbot()
 
 
 """
@@ -15,11 +18,15 @@ Auxillary
 """
 
 
-def _submit_message_to_agent(request, _: str, chat_id: int):
-    # TODO: Replace with real LLM agent API
-    time.sleep(1)
-    response = Message(lorem.paragraph(), False)
-    handle_agent_message(response, chat_id, response)
+def _submit_message_to_agent(request, last_user_message: str, chat_id: int):
+    curr_user = AccountModel.get_current_user(request, debug=True)
+    assert curr_user is not None
+    convo: ConversationModel = ConversationModel.find_conversation(
+        user=curr_user, chat_id=chat_id
+    )[0]
+    messages: list[Message] = convo.retrieve_messages()
+    response = Message(chatbot.generate_response(messages), False)
+    handle_agent_message(request, chat_id, response)
 
 
 def _handle_error(request, message: str) -> HttpResponseRedirect:
@@ -43,7 +50,7 @@ def load_chat_selection(request):
         (convo.id, convo.title)
         for convo in ConversationModel.find_conversation(curr_user, limit = limit)
     ]
-    totalConvos = ConversationModel.objects.filter(user = curr_user).count() 
+    totalConvos = ConversationModel.objects.filter(user = curr_user).count()
 
     error = request.session.get("error", None)
     if "error" in request.session:
