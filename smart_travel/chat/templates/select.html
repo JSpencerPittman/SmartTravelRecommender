@@ -16,6 +16,7 @@
     <div class="convo-box">
     {% for convo_id, convo_title in convos %}
         <a href="{% url 'operation__select_chat' convo_id %}">{{ convo_title }}</a>
+        <a href="{% url 'operation__delete_chat' convo_id %}">Delete</a>
     {% endfor %}
 </div>
 {% if limit < totalConvos %}

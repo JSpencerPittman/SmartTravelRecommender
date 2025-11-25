@@ -27,6 +27,13 @@ def _ensure_file_exists(abs_path: Path):
     abs_path.touch()
 
 
+def _retrieve_convo_by_id(conv_id: int) -> ConversationModel:
+    result = QueryFindConversation.execute(chat_id=conv_id)
+    assert result["status"]
+    assert len(result["data"]) > 0
+    return result["data"][0]
+
+
 """
 Query: Find Conversation
 """
@@ -89,7 +96,7 @@ class QueryRetrieveMessages(CQRSQuery):
     EVENT_NAME = "RETRIEVED_MESSAGES"
 
     @staticmethod
-    def execute(convo: ConversationModel) -> QueryRetrieveMessagesResponse:
+    def execute(conv_id: int) -> QueryRetrieveMessagesResponse:
         """
         Retrieve messages from this conversation's file.
 
@@ -101,6 +108,7 @@ class QueryRetrieveMessages(CQRSQuery):
         """
 
         try:
+            convo = _retrieve_convo_by_id(conv_id)
             _ensure_file_exists(convo.abs_path)
             with open(convo.abs_path, "r") as conv_file:
                 messages = Message.deserialize_messages(conv_file.readlines())

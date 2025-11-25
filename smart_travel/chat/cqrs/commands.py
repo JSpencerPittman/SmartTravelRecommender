@@ -7,23 +7,11 @@ from chat.utility.message import Message
 from django.utils import timezone  # type: ignore
 from eda.cqrs import CQRSCommand
 from eda.event_dispatcher import publish
-
-"""
-Auxillary
-"""
-
-
-def _ensure_file_exists(abs_path: Path):
-    """
-    Ensure this conversation's file exists. If it does not, then create the
-    requisite directories with the conversation file.
-    """
-
-    if abs_path.exists():
-        return
-    if not abs_path.parent.exists():
-        abs_path.parent.mkdir(parents=True)
-    abs_path.touch()
+from chat.cqrs.queries import (
+    QueryFindConversation,
+    _ensure_file_exists,
+    _retrieve_convo_by_id,
+)
 
 
 """
@@ -83,6 +71,26 @@ class CommandCreateConversation(CQRSCommand):
 
 
 """
+Command: Delete Conversation
+"""
+
+
+class CommandDeleteConversation(CQRSCommand):
+    EVENT_NAME = "DELETE_CONVERSATION"
+
+    @staticmethod
+    def execute(conv_id: int) -> bool:
+        try:
+            convo = _retrieve_convo_by_id(conv_id)
+            convo.delete()
+        except Exception:
+            return False
+
+        publish(CommandDeleteConversation.EVENT_NAME)
+        return True
+
+
+"""
 Command: Save Message
 """
 
@@ -91,7 +99,7 @@ class CommandSaveMessage(CQRSCommand):
     EVENT_NAME = "SAVE_MESSAGE"
 
     @staticmethod
-    def execute(convo: ConversationModel, message: Message) -> bool:
+    def execute(conv_id: int, message: Message) -> bool:
         """
         Save the message to this conversation's file.
 
@@ -100,6 +108,7 @@ class CommandSaveMessage(CQRSCommand):
         """
 
         try:
+            convo = _retrieve_convo_by_id(conv_id)
             _ensure_file_exists(convo.abs_path)
             with open(convo.abs_path, "a") as conv_file:
                 conv_file.write(message.serialize())

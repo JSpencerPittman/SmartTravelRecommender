@@ -1,25 +1,29 @@
 import json
 import threading
 import time
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
 
+from accounts.cqrs.queries import QueryGetCurrentUser
 from accounts.models import AccountModel
-from chat.cqrs.commands import CommandCreateConversation, CommandSaveMessage
-
-# from accounts.cqrs.queries import QueryGetCurrentUser
+from chat.cqrs.commands import (
+    CommandCreateConversation,
+    CommandDeleteConversation,
+    CommandSaveMessage,
+)
 from chat.cqrs.queries import QueryFindConversation, QueryRetrieveMessages
 from chat.forms import MessageForm, NewChatForm
 from chat.models import ConversationModel
 from chat.utility.message import Message
-from django.http.response import StreamingHttpResponse
+from chatbot.travel_chatbot import TravelChatbot
+from django.http.response import StreamingHttpResponse  # type: ignore
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
-from eda.event_dispatcher import get_event, publish, subscribe, EmittedEvent
+from eda.event_dispatcher import EmittedEvent, get_event, publish, subscribe
 
-# from chatbot.travel_chatbot import TravelChatbot
 PROJECT_DIR = Path(__file__).parent.parent
+DEBUG = True
 
-# chatbot = TravelChatbot()
+chatbot = TravelChatbot()
 
 
 """
@@ -28,29 +32,29 @@ Auxillary
 
 
 def get_current_user(request) -> AccountModel:
-    # result = QueryGetCurrentUser.execute(request)
-    # assert result["status"]
-    # curr_user = result["data"]
-    # assert curr_user is not None
-    # return curr_user
-    curr_user = AccountModel.objects.first()
+    if DEBUG:
+        curr_user = AccountModel.objects.first()
+        assert curr_user is not None
+        return curr_user
+
+    curr_user = QueryGetCurrentUser.execute(request)["data"]
     assert curr_user is not None
     return curr_user
 
 
-def _submit_message_to_agent(request, last_user_message: str, chat_id: int):
-    # curr_user = get_current_user(request)
-    # convo: ConversationModel = ConversationModel.find_conversation(
-    #     user=curr_user, chat_id=chat_id
-    # )[0]
-    # messages: list[Message] = convo.retrieve_messages()
-    # response = Message(chatbot.generate_response(messages), False)
-    time.sleep(1)
-    message = Message("RESPONSE", False)
-    curr_user = get_current_user(request)
-    convo = QueryFindConversation.execute(curr_user, chat_id)["data"][0]
-    CommandSaveMessage.execute(convo, message)
+def _submit_message_to_agent(request, last_user_message: str, conv_id: int):
+    if DEBUG:
+        time.sleep(1)
+        message = Message("RESPONSE", False)
+    else:
+        prev_messages = QueryRetrieveMessages.execute(request.session["conv_id"])[
+            "data"
+        ]
+        message = Message(chatbot.generate_response(prev_messages), False)
+
+    CommandSaveMessage.execute(conv_id, message)
     publish("NEW_AGENT_MESSAGE", data={"message": message})
+    return redirect("/chat")
 
 
 def _handle_error(request, message: str) -> HttpResponseRedirect:
@@ -86,14 +90,11 @@ def event_handler__new_conversation(request, event: EmittedEvent) -> EventHandle
 
 def event_handler__new_user_message(request, event: EmittedEvent) -> EventHandlerAction:
     message = event["data"]["message"]
-    curr_user = get_current_user(request)
-    convo = QueryFindConversation.execute(curr_user, request.session["conv_id"])[
-        "data"
-    ][0]
-    CommandSaveMessage.execute(convo, message)
+    conv_id = request.session["conv_id"]
+    CommandSaveMessage.execute(conv_id, message)
     thread = threading.Thread(
         target=_submit_message_to_agent,
-        args=(request, message.message, convo.id),
+        args=(request, message.message, conv_id),
         daemon=True,
     )
     thread.start()
@@ -104,6 +105,7 @@ EVENT_HANDLER_CALLBACKS = {
     "NEW_CONVERSATION": event_handler__new_conversation,
     "NEW_USER_MESSAGE": event_handler__new_user_message,
     "NEW_AGENT_MESSAGE": EventHandlerAction.RELOAD,
+    "DELETE_CONVERSATION": EventHandlerAction.RELOAD,
 }
 SUBSCRIBER__EVENT_STREAM = "event_stream"
 
@@ -136,6 +138,11 @@ Request Handlers
 
 def handle_select_chat(request, conv_id: int):
     request.session["conv_id"] = conv_id
+    return redirect("/chat")
+
+
+def handle_delete_chat(request, conv_id: int):
+    CommandDeleteConversation.execute(conv_id)
     return redirect("/chat")
 
 
@@ -216,11 +223,8 @@ def chat_selection_view_controller(request):
 def chat_view_controller(request):
     curr_user = get_current_user(request)
     conv_id = request.session["conv_id"]
-    result_find_convo = QueryFindConversation.execute(user=curr_user, chat_id=conv_id)
-    convo: ConversationModel = result_find_convo["data"][0]
-
-    result_retrieve_messages = QueryRetrieveMessages.execute(convo)
-    messages = result_retrieve_messages["data"]
+    result = QueryRetrieveMessages.execute(conv_id)
+    messages = result["data"]
 
     context = {
         "chat_id": conv_id,

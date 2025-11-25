@@ -10,6 +10,11 @@ urlpatterns = [
         views.handle_select_chat,
         name="operation__select_chat",
     ),
+    path(
+        "operation/delete_chat/<int:conv_id>",
+        views.handle_delete_chat,
+        name="operation__delete_chat",
+    ),
     path("operation/new_chat", views.handle_new_chat, name="operation__new_chat"),
     path(
         "operation/go_to_select",
