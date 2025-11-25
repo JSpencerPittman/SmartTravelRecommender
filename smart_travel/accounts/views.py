@@ -1,15 +1,13 @@
 from django.shortcuts import render, redirect  # type: ignore
 from .forms import SignUpForm, LoginForm
-from accounts.models import AccountModel
+from accounts.cqrs.queries import QueryFindUser
 
 
 def signup_view(request):
     if request.method == "POST":
         form = SignUpForm(request.POST)
-        if form.is_valid():
-            account = form.save()
-            request.session["user_id"] = account.id
-            return redirect("select")
+        if form.is_valid() and form.save():
+            return redirect("login")
     else:
         form = SignUpForm()
     return render(request, "signup.html", {"form": form})
@@ -21,16 +19,20 @@ def login_view(request):
         if form.is_valid():
             user_name = form.cleaned_data["user_id"]
             password = form.cleaned_data["password"]
-            matches = AccountModel.find_matching_user(
-                user_name=user_name, password=password
-            )
+
+            result = QueryFindUser.execute(user_name=user_name, password=password)
+            if not result["status"]:
+                return render(request, "login.html", {"form": form})
+            matches = result["data"]
             if len(matches) == 1:
                 request.session["user_id"] = matches[0].id
-                return redirect("select")
+                return redirect("/chat")
     else:
         form = LoginForm()
 
     return render(request, "login.html", {"form": form})
+
+
 def logout_view(request):
     assert request.method == "POST"
     return redirect("login")
