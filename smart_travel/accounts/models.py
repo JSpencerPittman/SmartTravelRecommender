@@ -1,6 +1,6 @@
 from django.db import models  # type: ignore
-from typing import Optional, Any
-from django.contrib.auth.hashers import check_password, make_password  # type: ignore
+from typing import Optional
+from django.contrib.auth.hashers import make_password  # type: ignore
 
 
 class AccountModel(models.Model):
@@ -21,41 +21,18 @@ class AccountModel(models.Model):
         )
 
     @staticmethod
-    def find_matching_user(
-        user_id: Optional[int] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
-        user_name: Optional[str] = None,
-        password: Optional[str] = None,
-    ) -> list["AccountModel"]:
-        search_query: dict[str, Any] = dict()
-        if user_id is not None:
-            search_query["id"] = user_id
-        if first_name is not None:
-            search_query["first_name"] = first_name
-        if last_name is not None:
-            search_query["last_name"] = last_name
-        if user_name is not None:
-            search_query["user_name"] = user_name
-
-        accounts = AccountModel.objects.filter(**search_query)
-
-        if password is not None:
-            return [
-                account
-                for account in accounts
-                if check_password(password, account.password_hash)
-            ]
-        else:
-            return list(accounts)
-
-    @staticmethod
     def get_current_user(request, debug: bool = False) -> Optional["AccountModel"]:
         if debug:
             return AccountModel.objects.first()
         if "user_id" in request.session:
             user_id = request.session["user_id"]
-            matches = AccountModel.find_matching_user(user_id=user_id)
+            from accounts.cqrs.queries import QueryFindUser
+
+            result = QueryFindUser.execute(user_id=user_id)
+            if not result["status"]:
+                return None
+            matches = result["data"]
             if len(matches) == 1:
                 return matches[0]
+
         return None

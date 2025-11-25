@@ -6,11 +6,13 @@ from chat.forms import MessageForm, NewChatForm
 from chat.models import ConversationModel, Message
 from accounts.models import AccountModel
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
-from lorem_text import lorem  # type: ignore
-from chatbot.travel_chatbot import TravelChatbot
+
+# from lorem_text import lorem  # type: ignore
+
+# from chatbot.travel_chatbot import TravelChatbot
 PROJECT_DIR = Path(__file__).parent.parent
 
-chatbot = TravelChatbot()
+# chatbot = TravelChatbot()
 
 
 """
@@ -24,8 +26,9 @@ def _submit_message_to_agent(request, last_user_message: str, chat_id: int):
     convo: ConversationModel = ConversationModel.find_conversation(
         user=curr_user, chat_id=chat_id
     )[0]
-    messages: list[Message] = convo.retrieve_messages()
-    response = Message(chatbot.generate_response(messages), False)
+    # messages: list[Message] = convo.retrieve_messages()
+    # response = Message(chatbot.generate_response(messages), False)
+    response = Message("RESPONSE", False)
     handle_agent_message(request, chat_id, response)
 
 
@@ -42,15 +45,15 @@ Page Loaders
 def load_chat_selection(request):
     curr_user = AccountModel.get_current_user(request, debug=True)
     assert curr_user is not None
-    limit = 5 #intital count of convos to be displayed
+    limit = 5  # intital count of convos to be displayed
     if request.method == "POST":
         limit = int(request.POST.get("limit", 5))
-        limit += 5          # output additional 5 convos for every load more request made
+        limit += 5  # output additional 5 convos for every load more request made
     convos = [
         (convo.id, convo.title)
-        for convo in ConversationModel.find_conversation(curr_user, limit = limit)
+        for convo in ConversationModel.find_conversation(curr_user, limit=limit)
     ]
-    totalConvos = ConversationModel.objects.filter(user = curr_user).count()
+    totalConvos = ConversationModel.objects.filter(user=curr_user).count()
 
     error = request.session.get("error", None)
     if "error" in request.session:
@@ -63,8 +66,7 @@ def load_chat_selection(request):
         "new_chat_form": NewChatForm(),
         "error": error,
         "totalConvos": totalConvos,
-        "limit": limit
-
+        "limit": limit,
     }
     return render(request, "select.html", context)
 
@@ -90,6 +92,7 @@ def load_chat(request, chat_id: int):
 """
 Event Handlers
 """
+
 
 def handle_new_chat(request):
     if request.method != "POST":
