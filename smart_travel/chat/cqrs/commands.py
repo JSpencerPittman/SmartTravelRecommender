@@ -1,10 +1,30 @@
-from eda.cqrs import CQRSCommand
-from accounts.models import AccountModel
-from eda.event_dispatcher import publish
 import hashlib
+from pathlib import Path
 
+from accounts.models import AccountModel
 from chat.models import ConversationModel
+from chat.utility.message import Message
 from django.utils import timezone  # type: ignore
+from eda.cqrs import CQRSCommand
+from eda.event_dispatcher import publish
+
+"""
+Auxillary
+"""
+
+
+def _ensure_file_exists(abs_path: Path):
+    """
+    Ensure this conversation's file exists. If it does not, then create the
+    requisite directories with the conversation file.
+    """
+
+    if abs_path.exists():
+        return
+    if not abs_path.parent.exists():
+        abs_path.parent.mkdir(parents=True)
+    abs_path.touch()
+
 
 """
 Command: Create Conversation
@@ -59,4 +79,34 @@ class CommandCreateConversation(CQRSCommand):
             return False
 
         publish(CommandCreateConversation.EVENT_NAME, {"conv_id": new_convo.id})
+        return True
+
+
+"""
+Command: Save Message
+"""
+
+
+class CommandSaveMessage(CQRSCommand):
+    EVENT_NAME = "SAVE_MESSAGE"
+
+    @staticmethod
+    def execute(convo: ConversationModel, message: Message) -> bool:
+        """
+        Save the message to this conversation's file.
+
+        Args:
+            message (Message): Message to be saved.
+        """
+
+        try:
+            _ensure_file_exists(convo.abs_path)
+            with open(convo.abs_path, "a") as conv_file:
+                conv_file.write(message.serialize())
+            convo.time_of_last_message = timezone.now()
+            convo.save()
+        except Exception:
+            return False
+
+        publish(CommandSaveMessage.EVENT_NAME)
         return True

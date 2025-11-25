@@ -1,20 +1,20 @@
-import threading
-from pathlib import Path
 import json
+import threading
+import time
+from pathlib import Path
+from enum import Enum
 
-from chat.forms import MessageForm, NewChatForm
-from chat.models import ConversationModel, Message
 from accounts.models import AccountModel
-from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
-from django.http.response import StreamingHttpResponse
+from chat.cqrs.commands import CommandCreateConversation, CommandSaveMessage
 
 # from accounts.cqrs.queries import QueryGetCurrentUser
-from chat.cqrs.queries import QueryFindConversation
-from chat.cqrs.commands import CommandCreateConversation
-from eda.event_dispatcher import get_event, subscribe, publish
-import time
-
-# from lorem_text import lorem  # type: ignore
+from chat.cqrs.queries import QueryFindConversation, QueryRetrieveMessages
+from chat.forms import MessageForm, NewChatForm
+from chat.models import ConversationModel
+from chat.utility.message import Message
+from django.http.response import StreamingHttpResponse
+from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
+from eda.event_dispatcher import get_event, publish, subscribe, EmittedEvent
 
 # from chatbot.travel_chatbot import TravelChatbot
 PROJECT_DIR = Path(__file__).parent.parent
@@ -49,7 +49,7 @@ def _submit_message_to_agent(request, last_user_message: str, chat_id: int):
     message = Message("RESPONSE", False)
     curr_user = get_current_user(request)
     convo = QueryFindConversation.execute(curr_user, chat_id)["data"][0]
-    convo.save_message(message)
+    CommandSaveMessage.execute(convo, message)
     publish("NEW_AGENT_MESSAGE", data={"message": message})
 
 
@@ -58,54 +58,122 @@ def _handle_error(request, message: str) -> HttpResponseRedirect:
     return redirect("/chat")
 
 
-def event_stream(request):
-    subscribe("select_page_view", "NEW_CONVERSATION")
-    subscribe("select_page_view", "NEW_USER_MESSAGE")
-    subscribe("select_page_view", "NEW_AGENT_MESSAGE")
+"""
+Event Handlers
+"""
 
-    def idle():
-        time.sleep(1)
-        return ": keepalive\n\n"
+
+class EventHandlerAction(Enum):
+    IDLE = 0
+    RELOAD = 1
+
+    def response(self) -> str:
+        if EventHandlerAction.IDLE == self:
+            time.sleep(1)
+            return ": keepalive\n\n"
+        else:
+            return f"data: {json.dumps({'action': 'reload'})}\n\n"
+
+
+def event_handler__new_conversation(request, event: EmittedEvent) -> EventHandlerAction:
+    if "conv_id" not in request.session:
+        request.session["conv_id"] = event["data"]["conv_id"]
+        request.session.save()
+        return EventHandlerAction.RELOAD
+    else:
+        return EventHandlerAction.IDLE
+
+
+def event_handler__new_user_message(request, event: EmittedEvent) -> EventHandlerAction:
+    message = event["data"]["message"]
+    curr_user = get_current_user(request)
+    convo = QueryFindConversation.execute(curr_user, request.session["conv_id"])[
+        "data"
+    ][0]
+    CommandSaveMessage.execute(convo, message)
+    thread = threading.Thread(
+        target=_submit_message_to_agent,
+        args=(request, message.message, convo.id),
+        daemon=True,
+    )
+    thread.start()
+    return EventHandlerAction.RELOAD
+
+
+EVENT_HANDLER_CALLBACKS = {
+    "NEW_CONVERSATION": event_handler__new_conversation,
+    "NEW_USER_MESSAGE": event_handler__new_user_message,
+    "NEW_AGENT_MESSAGE": EventHandlerAction.RELOAD,
+}
+SUBSCRIBER__EVENT_STREAM = "event_stream"
+
+
+def event_stream(request):
+    for event in EVENT_HANDLER_CALLBACKS.keys():
+        subscribe(SUBSCRIBER__EVENT_STREAM, event)
 
     def event_generator():
         while True:
-            event = get_event("select_page_view")
-            if event is not None:
-                match event["name"]:
-                    case "NEW_CONVERSATION":
-                        if "conv_id" not in request.session:
-                            request.session["conv_id"] = event["data"]["conv_id"]
-                            request.session.save()
-                            yield f"data: {json.dumps({'action': 'reload'})}\n\n"
-                        else:
-                            yield idle()
-                    case "NEW_USER_MESSAGE":
-                        message = event["data"]["message"]
-                        curr_user = get_current_user(request)
-                        convo = QueryFindConversation.execute(
-                            curr_user, request.session["conv_id"]
-                        )["data"][0]
-                        convo.save_message(message)
-                        thread = threading.Thread(
-                            target=_submit_message_to_agent,
-                            args=(request, message.message, convo.id),
-                            daemon=True,
-                        )
-                        thread.start()
-                        print("PROCESSED NEW MESSAGE")
-                        yield f"data: {json.dumps({'action': 'reload'})}\n\n"
-                    case "NEW_AGENT_MESSAGE":
-                        yield f"data: {json.dumps({'action': 'reload'})}\n\n"
-                    case _:
-                        yield idle()
-            else:
-                yield idle()
+            action = EventHandlerAction.IDLE
+            event = get_event(SUBSCRIBER__EVENT_STREAM)
+            if event is not None and event["name"] in EVENT_HANDLER_CALLBACKS:
+                handler = EVENT_HANDLER_CALLBACKS[event["name"]]
+
+                if isinstance(handler, EventHandlerAction):
+                    action = handler
+                else:
+                    action = handler(request, event)
+
+            yield action.response()
 
     return StreamingHttpResponse(event_generator(), content_type="text/event-stream")
 
 
 """
-Page Loaders
+Request Handlers
+"""
+
+
+def handle_select_chat(request, conv_id: int):
+    request.session["conv_id"] = conv_id
+    return redirect("/chat")
+
+
+def handle_new_chat(request):
+    if request.method != "POST":
+        return _handle_error(request, "Invalid new chat request.")
+
+    form = NewChatForm(request.POST)
+    if not form.is_valid():
+        return _handle_error(request, "Invalid new chat request.")
+
+    curr_user = get_current_user(request)
+    CommandCreateConversation.execute(form.cleaned_data["title"], curr_user)
+
+    return redirect("/chat")
+
+
+def handle_go_to_select(request):
+    del request.session["conv_id"]
+    return redirect("/chat")
+
+
+def handle_new_user_message(request):
+    if request.method != "POST":
+        return _handle_error(request, "Invalid new chat request.")
+
+    form = MessageForm(request.POST)
+    if not form.is_valid():
+        return _handle_error(request, "Invalid message request.")
+
+    message = Message(form.cleaned_data["message"], True)
+
+    publish("NEW_USER_MESSAGE", data={"message": message})
+    return redirect("/chat")
+
+
+"""
+Controllers
 """
 
 
@@ -148,58 +216,18 @@ def chat_selection_view_controller(request):
 def chat_view_controller(request):
     curr_user = get_current_user(request)
     conv_id = request.session["conv_id"]
-    result = QueryFindConversation.execute(user=curr_user, chat_id=conv_id)
-    convo: ConversationModel = result["data"][0]
+    result_find_convo = QueryFindConversation.execute(user=curr_user, chat_id=conv_id)
+    convo: ConversationModel = result_find_convo["data"][0]
+
+    result_retrieve_messages = QueryRetrieveMessages.execute(convo)
+    messages = result_retrieve_messages["data"]
 
     context = {
         "chat_id": conv_id,
         "first_name": curr_user.first_name,
         "last_name": curr_user.last_name,
-        "messages": convo.retrieve_messages(),
+        "messages": messages,
         "message_form": MessageForm(),
     }
 
     return render(request, "chat.html", context)
-
-
-"""
-Event Handlers
-"""
-
-
-def handle_select_chat(request, conv_id: int):
-    request.session["conv_id"] = conv_id
-    return redirect("/chat")
-
-
-def handle_new_chat(request):
-    if request.method != "POST":
-        return _handle_error(request, "Invalid new chat request.")
-
-    form = NewChatForm(request.POST)
-    if not form.is_valid():
-        return _handle_error(request, "Invalid new chat request.")
-
-    curr_user = get_current_user(request)
-    CommandCreateConversation.execute(form.cleaned_data["title"], curr_user)
-
-    return redirect("/chat")
-
-
-def handle_go_to_select(request):
-    del request.session["conv_id"]
-    return redirect("/chat")
-
-
-def handle_new_user_message(request):
-    if request.method != "POST":
-        return _handle_error(request, "Invalid new chat request.")
-
-    form = MessageForm(request.POST)
-    if not form.is_valid():
-        return _handle_error(request, "Invalid message request.")
-
-    message = Message(form.cleaned_data["message"], True)
-
-    publish("NEW_USER_MESSAGE", data={"message": message})
-    return redirect("/chat")

@@ -5,8 +5,27 @@ from accounts.models import AccountModel
 from chat.models import ConversationModel
 from eda.cqrs import CQRSQuery, CQRSQueryResponse
 from eda.event_dispatcher import publish
+from chat.utility.message import Message
 
 PROJECT_DIR = Path(__file__).parent.parent
+
+"""
+Auxillary
+"""
+
+
+def _ensure_file_exists(abs_path: Path):
+    """
+    Ensure this conversation's file exists. If it does not, then create the
+    requisite directories with the conversation file.
+    """
+
+    if abs_path.exists():
+        return
+    if not abs_path.parent.exists():
+        abs_path.parent.mkdir(parents=True)
+    abs_path.touch()
+
 
 """
 Query: Find Conversation
@@ -55,3 +74,38 @@ class QueryFindConversation(CQRSQuery):
 
         publish(QueryFindConversation.EVENT_NAME)
         return QueryFindConversationResponse(status=True, data=matches)
+
+
+"""
+Query: Retrieve Messages
+"""
+
+
+class QueryRetrieveMessagesResponse(CQRSQueryResponse):
+    data: list[Message]
+
+
+class QueryRetrieveMessages(CQRSQuery):
+    EVENT_NAME = "RETRIEVED_MESSAGES"
+
+    @staticmethod
+    def execute(convo: ConversationModel) -> QueryRetrieveMessagesResponse:
+        """
+        Retrieve messages from this conversation's file.
+
+        Note:
+            If the file does not exist prior, it will be created.
+
+        Returns:
+            list[Message]: Loaded messages.
+        """
+
+        try:
+            _ensure_file_exists(convo.abs_path)
+            with open(convo.abs_path, "r") as conv_file:
+                messages = Message.deserialize_messages(conv_file.readlines())
+        except Exception:
+            return QueryRetrieveMessagesResponse(status=False, data=[])
+
+        publish(QueryRetrieveMessages.EVENT_NAME)
+        return QueryRetrieveMessagesResponse(status=True, data=messages)

@@ -26,7 +26,7 @@ def login_view(request):
             matches = result["data"]
             if len(matches) == 1:
                 request.session["user_id"] = matches[0].id
-                return redirect("select")
+                return redirect("/chat")
     else:
         form = LoginForm()
 
