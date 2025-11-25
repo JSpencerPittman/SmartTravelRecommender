@@ -6,10 +6,8 @@ from accounts.cqrs.queries import QueryFindUser
 def signup_view(request):
     if request.method == "POST":
         form = SignUpForm(request.POST)
-        if form.is_valid():
-            account = form.save()
-            request.session["user_id"] = account.id
-            return redirect("select")
+        if form.is_valid() and form.save():
+            return redirect("login")
     else:
         form = SignUpForm()
     return render(request, "signup.html", {"form": form})

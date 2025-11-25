@@ -1,5 +1,6 @@
 from django import forms  # type: ignore
 from accounts.models import AccountModel
+from accounts.cqrs.commands import CommandCreateUser
 
 
 # Signup Form
@@ -20,8 +21,8 @@ class SignUpForm(forms.ModelForm):
             raise forms.ValidationError("Passwords do not match.")
         return cleaned_data
 
-    def save(self, _: bool = True) -> AccountModel:
-        return AccountModel.create(
+    def save(self, _: bool = True) -> bool:
+        return CommandCreateUser.execute(
             self.cleaned_data["first_name"],
             self.cleaned_data["last_name"],
             self.cleaned_data["user_name"],

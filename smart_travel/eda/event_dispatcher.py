@@ -13,7 +13,6 @@ class EventDispatcher(object):
             self._subscriptions[event] = [callback]
 
     def publish_event(self, event: str, event_data: Optional[dict] = None):
-        print("PUBLISHING EVENT: ", event)
         if event in self._subscriptions:
             for subscriber in self._subscriptions[event]:
                 thread = threading.Thread(

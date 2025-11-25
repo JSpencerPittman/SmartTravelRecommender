@@ -1,15 +1,18 @@
 from abc import ABC, abstractmethod
-from typing import TypedDict, Any
+from typing import TypedDict
 
 
 class CQRSCommand(ABC):
     @abstractmethod
     def execute(self, *args, **kwargs) -> bool: ...
 
+    @staticmethod
+    @abstractmethod
+    def publish_event(*args, **kwargs): ...
+
 
 class CQRSQueryResponse(TypedDict):
     status: bool
-    data: Any
 
 
 class CQRSQuery(ABC):

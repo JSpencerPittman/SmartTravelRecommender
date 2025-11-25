@@ -5,13 +5,17 @@ from django.contrib.auth.hashers import check_password  # type: ignore
 from eda.event_dispatcher import publish_event
 
 
+"""
+Query: Find User
+"""
+
+
 class QueryFindUserResponse(CQRSQueryResponse):
-    status: bool
     data: list[AccountModel]
 
 
 class QueryFindUser(CQRSQuery):
-    EVENT_NAME = "QUERY_FIND_USER"
+    EVENT_NAME = "FOUND_USER"
 
     @staticmethod
     def execute(
@@ -34,7 +38,7 @@ class QueryFindUser(CQRSQuery):
         try:
             accounts = list(AccountModel.objects.filter(**search_query))
         except Exception:
-            return CQRSQueryResponse(status=False, data=[])
+            return QueryFindUserResponse(status=False, data=[])
 
         if password is not None:
             accounts = [
@@ -42,9 +46,40 @@ class QueryFindUser(CQRSQuery):
             ]
 
         QueryFindUser.publish_event()
-
-        return CQRSQueryResponse(status=True, data=accounts)
+        return QueryFindUserResponse(status=True, data=accounts)
 
     @staticmethod
     def publish_event():
         publish_event(QueryFindUser.EVENT_NAME)
+
+
+"""
+Query: Get Current User
+"""
+
+
+class QueryGetCurrentUserResponse(CQRSQueryResponse):
+    data: Optional[AccountModel]
+
+
+class QueryGetCurrentUser(CQRSQuery):
+    EVENT_NAME = "FOUND_CURRENT_USER"
+
+    @staticmethod
+    def execute(request) -> QueryGetCurrentUserResponse:
+        if "user_id" in request.session:
+            user_id = request.session["user_id"]
+            result = QueryFindUser.execute(user_id=user_id)
+            if not result["status"]:
+                return QueryGetCurrentUserResponse(status=False, data=None)
+            matches = result["data"]
+            if len(matches) == 1:
+
+                return QueryGetCurrentUserResponse(status=True, data=matches[0])
+
+        QueryGetCurrentUser.publish_event()
+        return QueryGetCurrentUserResponse(status=False, data=None)
+
+    @staticmethod
+    def publish_event():
+        publish_event(QueryGetCurrentUser.EVENT_NAME)

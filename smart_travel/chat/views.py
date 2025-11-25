@@ -1,11 +1,11 @@
 import threading
-import time
 from pathlib import Path
 
 from chat.forms import MessageForm, NewChatForm
 from chat.models import ConversationModel, Message
 from accounts.models import AccountModel
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
+from accounts.cqrs.queries import QueryGetCurrentUser
 
 # from lorem_text import lorem  # type: ignore
 
@@ -20,12 +20,20 @@ Auxillary
 """
 
 
-def _submit_message_to_agent(request, last_user_message: str, chat_id: int):
-    curr_user = AccountModel.get_current_user(request, debug=True)
+def get_current_user(request) -> AccountModel:
+    result = QueryGetCurrentUser.execute(request)
+    assert result["status"]
+    curr_user = result["data"]
     assert curr_user is not None
-    convo: ConversationModel = ConversationModel.find_conversation(
-        user=curr_user, chat_id=chat_id
-    )[0]
+    return curr_user
+
+
+def _submit_message_to_agent(request, last_user_message: str, chat_id: int):
+    curr_user = get_current_user(request)
+
+    # convo: ConversationModel = ConversationModel.find_conversation(
+    #     user=curr_user, chat_id=chat_id
+    # )[0]
     # messages: list[Message] = convo.retrieve_messages()
     # response = Message(chatbot.generate_response(messages), False)
     response = Message("RESPONSE", False)
@@ -43,8 +51,8 @@ Page Loaders
 
 
 def load_chat_selection(request):
-    curr_user = AccountModel.get_current_user(request, debug=True)
-    assert curr_user is not None
+    curr_user = get_current_user(request)
+
     limit = 5  # intital count of convos to be displayed
     if request.method == "POST":
         limit = int(request.POST.get("limit", 5))
@@ -72,8 +80,7 @@ def load_chat_selection(request):
 
 
 def load_chat(request, chat_id: int):
-    curr_user = AccountModel.get_current_user(request, debug=True)
-    assert curr_user is not None
+    curr_user = get_current_user(request)
     convo: ConversationModel = ConversationModel.find_conversation(
         user=curr_user, chat_id=chat_id
     )[0]
@@ -102,8 +109,7 @@ def handle_new_chat(request):
     if not form.is_valid():
         return _handle_error(request, "Invalid new chat request.")
 
-    curr_user = AccountModel.get_current_user(request, debug=True)
-    assert curr_user is not None
+    curr_user = get_current_user(request)
     new_convo = ConversationModel.create(form.cleaned_data["title"], curr_user)
 
     return redirect(f"/chat/{new_convo.id}")
@@ -119,8 +125,7 @@ def handle_user_message(request, chat_id: int):
 
     message = Message(form.cleaned_data["message"], True)
 
-    curr_user = AccountModel.get_current_user(request, True)
-    assert curr_user is not None
+    curr_user = get_current_user(request)
     convo: ConversationModel = ConversationModel.find_conversation(curr_user, chat_id)[
         0
     ]
@@ -137,8 +142,7 @@ def handle_user_message(request, chat_id: int):
 
 
 def handle_agent_message(request, chat_id: int, message: Message):
-    curr_user = AccountModel.get_current_user(request, debug=True)
-    assert curr_user is not None
+    curr_user = get_current_user(request)
     convo: ConversationModel = ConversationModel.find_conversation(curr_user, chat_id)[
         0
     ]
