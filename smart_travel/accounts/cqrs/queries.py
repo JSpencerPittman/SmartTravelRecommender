@@ -2,7 +2,7 @@ from eda.cqrs import CQRSQuery, CQRSQueryResponse
 from accounts.models import AccountModel
 from typing import Optional, Any
 from django.contrib.auth.hashers import check_password  # type: ignore
-from eda.event_dispatcher import publish_event
+from eda.event_dispatcher import publish
 
 
 """
@@ -45,12 +45,8 @@ class QueryFindUser(CQRSQuery):
                 acc for acc in accounts if check_password(password, acc.password_hash)
             ]
 
-        QueryFindUser.publish_event()
+        publish(QueryFindUser.EVENT_NAME)
         return QueryFindUserResponse(status=True, data=accounts)
-
-    @staticmethod
-    def publish_event():
-        publish_event(QueryFindUser.EVENT_NAME)
 
 
 """

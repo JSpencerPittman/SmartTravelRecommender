@@ -1,32 +1,63 @@
-from typing import Callable, Optional
-import threading
+from queue import Queue
+from typing import TypedDict, Optional
+
+
+class EmittedEvent(TypedDict):
+    name: str
+    data: dict
 
 
 class EventDispatcher(object):
     def __init__(self):
-        self._subscriptions = dict()
+        self._subscriptions = dict()  # Event -> Subscriber
+        self._subscribers = {}  # Subscriber -> Queue
 
-    def register_subscriber(self, event: str, callback: Callable[..., None]):
+    def subscribe(
+        self,
+        name: str,
+        event: str,
+    ):
         if event in self._subscriptions:
-            self._subscriptions[event].append(callback)
+            if name not in self._subscriptions[event]:
+                self._subscriptions[event].append(name)
         else:
-            self._subscriptions[event] = [callback]
+            self._subscriptions[event] = [name]
 
-    def publish_event(self, event: str, event_data: Optional[dict] = None):
+        if name not in self._subscribers:
+            self._subscribers[name] = Queue()
+
+    def unsuscribe(self, name: str, event: str):
+        if event in self._subscriptions:
+            for idx, subscriber in enumerate(self._subscriptions[event]):
+                if subscriber == name:
+                    self._subscriptions[event].pop(idx)
+                    break
+
+    def publish(self, event: str, data: dict = {}):
         if event in self._subscriptions:
             for subscriber in self._subscriptions[event]:
-                thread = threading.Thread(
-                    target=subscriber, args=(event_data,), daemon=True
-                )
-                thread.start()
+                self._subscribers[subscriber].put(EmittedEvent(name=event, data=data))
+
+    def get_event(self, name: str) -> Optional[EmittedEvent]:
+        if name in self._subscribers and not self._subscribers[name].empty():
+            return self._subscribers[name].get()
+        return None
 
 
 _dispatcher = EventDispatcher()
 
 
-def register_subscriber(event_name: str, subscriber: Callable[..., None]):
-    _dispatcher.register_subscriber(event_name, subscriber)
+def subscribe(name: str, event: str):
+    return _dispatcher.subscribe(name, event)
 
 
-def publish_event(event_name: str, event_data: Optional[dict] = None):
-    _dispatcher.publish_event(event_name, event_data)
+def unsuscribe(name: str, event: str):
+    return _dispatcher.subscribe(name, event)
+
+
+def publish(event_name: str, data: dict = {}):
+    _dispatcher.publish(event_name, data)
+
+
+def get_event(name: str) -> Optional[EmittedEvent]:
+    return _dispatcher.get_event(name)

@@ -5,7 +5,7 @@
 </head>
 <body>
     <h1>Chat</h1>
-    <a href="{% url 'select' %}">Back</a>
+    <a href="{% url 'operation__go_to_select' %}">Back</a>
     <h1>User</h1>
     <p>{{ first_name }} {{ last_name }}</p>
     <h2>Conversation</h2>
@@ -13,10 +13,24 @@
         <p>{% if message.is_user %}User{% else %}Agent{% endif %}: {{ message.message }}</p>
     {% endfor %}
     <h2>Message</h2>
-    <form action="{% url 'message' chat_id %}" method="post">
+    <form action="{% url 'operation__new_user_message' %}" method="post">
         {% csrf_token %}
         {{ message_form }}
         <button type="submit">Send</button>
     </form>
+        <script>
+    const eventSource = new EventSource('{% url "event_stream" %}');
+    
+    eventSource.onmessage = function(e) {
+        const msg = JSON.parse(e.data);
+        if (msg.action === 'reload') {
+            window.location.reload();
+        }
+    };
+    
+    eventSource.onerror = function(e) {
+        console.error('SSE connection error:', e);
+    };
+</script>
 </body>
 </html>
