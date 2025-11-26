@@ -35,4 +35,5 @@ def login_view(request):
 
 def logout_view(request):
     assert request.method == "POST"
+    del request.session["user_id"]
     return redirect("login")
