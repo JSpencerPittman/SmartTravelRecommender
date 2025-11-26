@@ -1,9 +1,10 @@
 from accounts.models import AccountModel
-from chat.models import ConversationModel, Message
+from chat.models import ConversationModel
+from chat.utility.message import Message
 from django.core.management.base import BaseCommand  # type: ignore
 from accounts.cqrs.commands import CommandCreateUser
 from accounts.cqrs.queries import QueryFindUser
-from eda.event_dispatcher import register_subscriber
+from eda.event_dispatcher import subscribe
 
 
 def _create_convo_on_user_creation(data: dict):
@@ -19,7 +20,7 @@ class Command(BaseCommand):
         AccountModel.objects.all().delete()
         ConversationModel.objects.all().delete()
 
-        register_subscriber("CREATED_USER", _create_convo_on_user_creation)
+        subscribe("CREATED_USER", _create_convo_on_user_creation)
         CommandCreateUser.create(
             first_name="Jason",
             last_name="Pittman",
