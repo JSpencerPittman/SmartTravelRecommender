@@ -7,7 +7,7 @@ from typing import Final
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from chat.views import Message
+from chat.utility.message import Message
 
 load_dotenv()
 
