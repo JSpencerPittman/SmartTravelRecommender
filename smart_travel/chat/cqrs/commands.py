@@ -79,9 +79,11 @@ class CommandDeleteConversation(CQRSCommand):
     EVENT_NAME = "DELETE_CONVERSATION"
 
     @staticmethod
-    def execute(conv_id: int) -> bool:
+    def execute(user_id, conv_id: int) -> bool:
         try:
             convo = _retrieve_convo_by_id(conv_id)
+            if convo.user.id != user_id:
+                return False
             convo.delete()
         except Exception:
             return False
