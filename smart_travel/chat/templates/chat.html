@@ -1,24 +1,54 @@
+{% load static %}
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chat</title>
+    <title>STA | Chat</title>
+    <link rel="stylesheet" href="{% static '/chat.css' %}">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
 </head>
 <body>
-    <h1>Chat</h1>
-    <a href="{% url 'operation__go_to_select' %}">Back</a>
-    <h1>User</h1>
-    <p>{{ first_name }} {{ last_name }}</p>
-    <h2>Conversation</h2>
-    {% for message in messages %}
-        <p>{% if message.is_user %}User{% else %}Agent{% endif %}: {{ message.message }}</p>
-    {% endfor %}
-    <h2>Message</h2>
-    <form action="{% url 'operation__new_user_message' %}" method="post">
-        {% csrf_token %}
-        {{ message_form }}
-        <button type="submit">Send</button>
-    </form>
-        <script>
+    <div id="heading-cont" class="w-auto p-3 text-center">
+        <h1>Smart Travel Recommender</h1>
+    </div>
+
+    <div id="user-info-cont">
+        <a href="{% url 'operation__go_to_select' %}">
+            <img src="{% static 'images/back.png' %}" alt="Delete">
+        </a>
+        <p id="chat-info-user-name">{{ first_name }} {{ last_name }}</p>
+    </div>
+    <div id="conv-cont">
+        <div id="conv-title-cont">
+            <h2>{{ title }}</h2>
+        </div>
+        <div id="messages-cont">
+        {% for message in messages %}
+        <div class="message-cont">
+            {% if message.is_user %}
+                <p class="message user-message">{{ message.message }}</p>
+            {% else %}
+                <p class="message agent-message">{{ message.message }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="new-message-cont">
+        <form action="{% url 'operation__new_user_message' %}" method="post">
+            {% csrf_token %}
+            {{ message_form }}
+            <button type="submit">Send</button>
+        </form>
+    </div>
+    
+    <!-- Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"></script>
+    <script>
     const eventSource = new EventSource('{% url "event_stream" %}');
     
     eventSource.onmessage = function(e) {

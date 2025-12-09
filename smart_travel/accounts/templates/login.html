@@ -1,7 +1,32 @@
-<h2>Login</h2>
-<form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Login</button>
-</form>
-<a href="{% url 'signup' %}">Don't have an account? Sign Up</a>
+{% load static %}
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>STA | Login</title>
+    <link rel="stylesheet" href="{% static '/login.css' %}">
+    
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+</head>
+
+<body>
+    <div id="heading-cont" class="w-auto p-3 text-center">
+        <p class="fs-1">Login</p>
+    </div>
+    <div id="login-form-cont" class="text-center p-3">
+        <form method="post" id="login-form">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">Login</button>
+        </form>
+    </div>
+    <div id="signup-cont" class="text-center p-3">
+        <a href="{% url 'signup' %}">Don't have an account? Sign Up</a>
+    </div>
+    <!-- Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"></script>
+</body>

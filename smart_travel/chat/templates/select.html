@@ -1,61 +1,82 @@
 {% load static %}
-
-<link rel="stylesheet" href="{% static '/style.css' %}">
-
-
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Chat</title>
-</head>
-<body>
-    <h1>Chat</h1>
-    <h1>User</h1>
-    <p>{{ first_name }} {{ last_name }}</p>
-    <h2> Conversations</h2>
-    <div class="convo-box">
-    {% for convo_id, convo_title in convos %}
-        <a href="{% url 'operation__select_chat' convo_id %}">{{ convo_title }}</a>
-        <a href="{% url 'operation__delete_chat' convo_id %}">Delete</a>
-    {% endfor %}
-</div>
-{% if limit < totalConvos %}
-<form method="post">
-    {% csrf_token %}
-    <input type="hidden" name="limit" value="{{ limit|default:5 }}">
-    <button type="submit">Load More</button>
-</form>
-{% endif %}
 
-    <h2>New Conversation?</h2>
-    <form action="{% url 'operation__new_chat' %}" method="post">
-        {% csrf_token %}
-        {{ new_chat_form }}
-        <button type="submit">New Conversation</button>
-    </form>
-    <div style="margin-top: 50px;">
+<head>
+    <title>STA | Select</title>
+    <link rel="stylesheet" href="{% static '/select.css' %}">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+</head>
+
+<body>
+    <div id="heading-cont" class="w-auto p-3 text-center">
+        <h1>Smart Travel Recommender</h1>
+    </div>
+    <div id="user-info-cont" class="w-auto p-3">
+    <p>{{ first_name }} {{ last_name }}</p>
+    </div>
+    <div id="past-conv-cont">
+        <h3>Conversations</h3>
+        <div class="convo-box">
+            {% for convo_id, convo_title in convos %}
+            <div class="select-conv-cont">
+                <a class="select-conv" href="{% url 'operation__select_chat' convo_id %}">{{ convo_title }}</a>
+                <a class="delete-conv" href="{% url 'operation__delete_chat' convo_id %}">
+                    <img src="{% static 'images/trash-can.png' %}" alt="Delete">
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if limit < totalConvos %} <div id="load-more-cont">
+            <form method="post" id="load-more-form">
+                {% csrf_token %}
+                <input type="hidden" name="limit" value="{{ limit|default:5 }}">
+                <button type="submit">Load More</button>
+            </form>
+    </div>
+    {% endif %}
+    </div>
+
+    <div id="new-conv-cont">
+        <h3>New Conversation?</h3>
+        <form action="{% url 'operation__new_chat' %}" method="post">
+            {% csrf_token %}
+            {{ new_chat_form }}
+            <button type="submit">New Conversation</button>
+        </form>
+    </div>
+
+    <div style="margin-top: 50px;" id="logout-cont">
         <form action="{% url 'logout' %}" method="post">
             {% csrf_token %}
             <button type="submit">Logout</button>
         </form>
     </div>
+
     {% if error %}
-    <h2>Error</h2>
-    <p>{{ error }}</p>
+    <div id="error-cont">
+        <h3>Error</h3>
+        <p>{{ error }}</p>
+    </div>
     {% endif %}
     <script>
-    const eventSource = new EventSource('{% url "event_stream" %}');
-    
-    eventSource.onmessage = function(e) {
-        const msg = JSON.parse(e.data);
-        if (msg.action === 'reload') {
-            window.location.reload();
-        }
-    };
-    
-    eventSource.onerror = function(e) {
-        console.error('SSE connection error:', e);
-    };
-</script>
+        const eventSource = new EventSource('{% url "event_stream" %}');
+
+        eventSource.onmessage = function (e) {
+            const msg = JSON.parse(e.data);
+            if (msg.action === 'reload') {
+                window.location.reload();
+            }
+        };
+
+        eventSource.onerror = function (e) {
+            console.error('SSE connection error:', e);
+        };
+    </script>
 </body>
+
 </html>
