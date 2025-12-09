@@ -15,7 +15,8 @@ from chat.cqrs.queries import QueryFindConversation, QueryRetrieveMessages
 from chat.forms import MessageForm, NewChatForm
 from chat.models import ConversationModel
 from chat.utility.message import Message
-from chatbot.travel_chatbot import TravelChatbot
+
+# from chatbot.travel_chatbot import TravelChatbot
 from django.http.response import StreamingHttpResponse  # type: ignore
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 from eda.event_dispatcher import EmittedEvent, get_event, publish, subscribe
@@ -23,7 +24,7 @@ from eda.event_dispatcher import EmittedEvent, get_event, publish, subscribe
 PROJECT_DIR = Path(__file__).parent.parent
 DEBUG = True
 
-chatbot = TravelChatbot()
+# chatbot = TravelChatbot()
 
 
 """
@@ -43,14 +44,14 @@ def get_current_user(request) -> AccountModel:
 
 
 def _submit_message_to_agent(request, last_user_message: str, conv_id: int):
-    if DEBUG:
-        time.sleep(1)
-        message = Message("RESPONSE", False)
-    else:
-        prev_messages = QueryRetrieveMessages.execute(request.session["conv_id"])[
-            "data"
-        ]
-        message = Message(chatbot.generate_response(prev_messages), False)
+    # if DEBUG:
+    time.sleep(1)
+    message = Message("RESPONSE", False)
+    # else:
+    # prev_messages = QueryRetrieveMessages.execute(request.session["conv_id"])[
+    #     "data"
+    # ]
+    # message = Message(chatbot.generate_response(prev_messages), False)
 
     CommandSaveMessage.execute(conv_id, message)
     publish("NEW_AGENT_MESSAGE", data={"message": message})
