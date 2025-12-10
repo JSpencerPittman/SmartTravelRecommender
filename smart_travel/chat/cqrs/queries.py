@@ -89,6 +89,7 @@ Query: Retrieve Messages
 
 
 class QueryRetrieveMessagesResponse(CQRSQueryResponse):
+    title: str
     data: list[Message]
 
 
@@ -113,7 +114,9 @@ class QueryRetrieveMessages(CQRSQuery):
             with open(convo.abs_path, "r") as conv_file:
                 messages = Message.deserialize_messages(conv_file.readlines())
         except Exception:
-            return QueryRetrieveMessagesResponse(status=False, data=[])
+            return QueryRetrieveMessagesResponse(status=False, title="", data=[])
 
         publish(QueryRetrieveMessages.EVENT_NAME)
-        return QueryRetrieveMessagesResponse(status=True, data=messages)
+        return QueryRetrieveMessagesResponse(
+            status=True, title=convo.title, data=messages
+        )

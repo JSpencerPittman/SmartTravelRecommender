@@ -3,6 +3,7 @@ import threading
 import time
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 from accounts.cqrs.queries import QueryGetCurrentUser
 from accounts.models import AccountModel
@@ -15,15 +16,17 @@ from chat.cqrs.queries import QueryFindConversation, QueryRetrieveMessages
 from chat.forms import MessageForm, NewChatForm
 from chat.models import ConversationModel
 from chat.utility.message import Message
-from chatbot.travel_chatbot import TravelChatbot
+from chatbot.travel_chatbot import Chatbot
 from django.http.response import StreamingHttpResponse  # type: ignore
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 from eda.event_dispatcher import EmittedEvent, get_event, publish, subscribe
 
 PROJECT_DIR = Path(__file__).parent.parent
-DEBUG = True
+DEBUG = False
 
-chatbot = TravelChatbot()
+chatbot = Chatbot()
+if not DEBUG:
+    chatbot.initialize_session()
 
 
 """
@@ -43,6 +46,7 @@ def get_current_user(request) -> AccountModel:
 
 
 def _submit_message_to_agent(request, last_user_message: str, conv_id: int):
+    message: Optional[Message] = None
     if DEBUG:
         time.sleep(1)
         message = Message("RESPONSE", False)
@@ -50,11 +54,13 @@ def _submit_message_to_agent(request, last_user_message: str, conv_id: int):
         prev_messages = QueryRetrieveMessages.execute(request.session["conv_id"])[
             "data"
         ]
-        message = Message(chatbot.generate_response(prev_messages), False)
+        response = chatbot.prompt_completion(prev_messages)
+        if response is not None:
+            message = Message(response, False)
 
-    CommandSaveMessage.execute(conv_id, message)
-    publish("NEW_AGENT_MESSAGE", data={"message": message})
-    return redirect("/chat")
+    if message is not None:
+        CommandSaveMessage.execute(conv_id, message)
+        publish("NEW_AGENT_MESSAGE", data={"message": message})
 
 
 def _handle_error(request, message: str) -> HttpResponseRedirect:
@@ -230,6 +236,7 @@ def chat_view_controller(request):
         "chat_id": conv_id,
         "first_name": curr_user.first_name,
         "last_name": curr_user.last_name,
+        "title": result["title"],
         "messages": messages,
         "message_form": MessageForm(),
     }

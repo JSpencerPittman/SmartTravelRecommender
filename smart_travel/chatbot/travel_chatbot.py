@@ -1,44 +1,61 @@
-"""Implements the smart travel advisor chatbot."""
-
-from collections.abc import Iterable
 import os
-from typing import Final
+from pathlib import Path
+from typing import Literal, Optional
 
+from chat.utility.message import Message  # type: ignore
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from chat.utility.message import Message
-
 load_dotenv()
 
+ENV_VAR__API_KEY = "OPENAI_API_KEY"
+SYSTEM_PROMPT_PATH = Path(__file__).parent / "prompt.txt"
 
-class TravelChatbot:
-    SYSTEM_PROMPT: Final[int] = """
-    You must act as a highly knowledgeable and friendly travel guide who guides the user in determining where they would like to travel.
-    In doing so, you should determine the user's preferences and make it easy for them to reveal their preferences by making conversation easy.
-    Ultimately, you must recommend a few good travel destinations based on the user's preferences.
-    Then, when the user selects a travel destination, recommend generating a travel itinerary and a budget, and do so upon user request.
-    When asked, your name is simply Smart Travel Advisor.
-    """
 
-    def __init__(self, model: str = "gpt-5", temperature: float = 0.7, top_p: float = 0.99) -> None:
-        self._client: OpenAI = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+def _read_system_prompt() -> str:
+    with open(SYSTEM_PROMPT_PATH, "r") as infile:
+        return "\n".join(infile.readlines())
+
+
+def _create_chatbot_message(
+    role: Literal["user", "assistant", "developer"], content: str
+) -> dict[str, str]:
+    return {"role": role, "content": content}
+
+
+class Chatbot:
+    def __init__(
+        self, model: str = "gpt-5", temperature: float = 0.7, top_p: float = 0.99
+    ):
         self._model: str = model
         self._temperature: float = temperature
         self._top_p: float = top_p
+        self._client: Optional[OpenAI] = None
 
-    def generate_response(self, messages: Iterable[Message]) -> str:
-        return self._client.responses.create(
+    def initialize_session(self) -> bool:
+        api_key = os.environ.get(ENV_VAR__API_KEY)
+        if api_key is None:
+            return False
+        try:
+            self._client = OpenAI(api_key=api_key)
+            return True
+        except Exception:
+            return False
+
+    def prompt_completion(self, history: list[Message]) -> Optional[str]:
+        assert self._client is not None
+
+        messages = [_create_chatbot_message("developer", _read_system_prompt())]
+        for msg in history:
+            messages.append(
+                _create_chatbot_message(
+                    "user" if msg.is_user else "assistant", msg.message
+                )
+            )
+
+        completion = self._client.chat.completions.create(
+            messages=messages,  # type: ignore
             model=self._model,
-            temperature=self._temperature,
-            top_p=self._top_p,
-            tools=[{"type": "web_search"}],
-            instructions=self.SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user" if message.is_user else "assistant",
-                    "content": message.message,
-                }
-                for message in messages
-            ],
-        ).output_text
+        )
+
+        return completion.choices[0].message.content
