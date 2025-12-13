@@ -133,6 +133,10 @@ body {
     background-color: #fff;
     border-top: 1px solid #e0e0e0;
     padding: 20px 30px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: center;
 }
 
 #new-message-cont form {
@@ -140,6 +144,11 @@ body {
     grid-template-columns: 1fr auto;
     gap: 12px;
     align-items: center;
+    grid-column: 2 / 3; /* Form takes the middle column */
+}
+
+#new-message-cont #download-button {
+    grid-column: 1 / 2; /* Download button in first column */
 }
 
 #new-message-cont label {
@@ -163,7 +172,8 @@ body {
     border-color: #007AFF;
 }
 
-#new-message-cont button {
+#new-message-cont button,
+#download-button {
     padding: 12px 28px;
     background-color: #fff;
     color: #333;
@@ -176,11 +186,24 @@ body {
     border: 1px solid #e0e0e0;
 }
 
-#new-message-cont button:hover {
+#new-message-cont button:hover,
+#download-button:hover {
     background-color: #aaa;
     color: #fff;
 }
 
 #new-message-cont button:active {
     transform: scale(0.98);
+}
+
+#download-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+}
+
+#download-button img {
+    width: 24px;
+    height: 24px;
 }

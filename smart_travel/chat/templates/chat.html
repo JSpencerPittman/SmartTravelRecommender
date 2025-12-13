@@ -37,6 +37,9 @@
     </div>
 
     <div id="new-message-cont">
+        <a id="download-button" href="{% url 'operation__download_pdf' %}" class="btn btn-primary">
+            <img src="{% static 'images/download.png' %}" alt="Download PDF">
+        </a>
         <form action="{% url 'operation__new_user_message' %}" method="post">
             {% csrf_token %}
             {{ message_form }}

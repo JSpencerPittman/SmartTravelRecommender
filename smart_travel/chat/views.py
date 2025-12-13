@@ -17,7 +17,8 @@ from chat.forms import MessageForm, NewChatForm
 from chat.models import ConversationModel
 from chat.utility.message import Message
 from chatbot.travel_chatbot import Chatbot
-from django.http.response import StreamingHttpResponse  # type: ignore
+from chatbot.pdf import PDFCreator
+from django.http.response import StreamingHttpResponse, HttpResponse  # type: ignore
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 from eda.event_dispatcher import EmittedEvent, get_event, publish, subscribe
 
@@ -185,6 +186,29 @@ def handle_new_user_message(request):
     message = Message(form.cleaned_data["message"], True)
     publish("NEW_USER_MESSAGE", data={"message": message})
     return redirect("/chat")
+
+
+def handle_download_pdf(request):
+    conv_id = request.session["conv_id"]
+    result = QueryRetrieveMessages.execute(conv_id)
+    messages = result["data"]
+    title = result["title"]
+
+    curr_user = get_current_user(request)
+    if curr_user is None:
+        return redirect("/chat")
+
+    def serialize_message(message: Message) -> str:
+        name = f"{curr_user.first_name}" if message.is_user else "Travel Assistant"
+        return f"{name}:\n{message.message}"
+
+    content = "\n".join([serialize_message(message) for message in messages])
+
+    pdf = PDFCreator(title, content).create()
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = 'attachment; filename="travel-itenerary.pdf"'
+
+    return response
 
 
 """
