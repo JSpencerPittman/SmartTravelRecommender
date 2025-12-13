@@ -34,22 +34,22 @@ Auxillary
 """
 
 
-def get_current_user(request) -> AccountModel:
-    if DEBUG:
-        curr_user = AccountModel.objects.first()
-        assert curr_user is not None
-        return curr_user
+def get_current_user(request) -> Optional[AccountModel]:
+    curr_user = None
 
-    curr_user = QueryGetCurrentUser.execute(request)["data"]
-    assert curr_user is not None
+    if DEBUG:  # pragma: no cover
+        curr_user = AccountModel.objects.first()  # pragma: no cover
+    else:
+        curr_user = QueryGetCurrentUser.execute(request)["data"]
+
     return curr_user
 
 
 def _submit_message_to_agent(request, last_user_message: str, conv_id: int):
     message: Optional[Message] = None
-    if DEBUG:
-        time.sleep(1)
-        message = Message("RESPONSE", False)
+    if DEBUG:  # pragma: no cover
+        time.sleep(1)  # pragma: no cover
+        message = Message("RESPONSE", False)  # pragma: no cover
     else:
         prev_messages = QueryRetrieveMessages.execute(request.session["conv_id"])[
             "data"
@@ -148,7 +148,9 @@ def handle_select_chat(request, conv_id: int):
 
 
 def handle_delete_chat(request, conv_id: int):
-    CommandDeleteConversation.execute(conv_id)
+    curr_user = get_current_user(request)
+    assert curr_user is not None
+    CommandDeleteConversation.execute(curr_user.id, conv_id)
     return redirect("/chat")
 
 
@@ -161,6 +163,7 @@ def handle_new_chat(request):
         return _handle_error(request, "Invalid new chat request.")
 
     curr_user = get_current_user(request)
+    assert curr_user is not None
     CommandCreateConversation.execute(form.cleaned_data["title"], curr_user)
 
     return redirect("/chat")
@@ -180,7 +183,6 @@ def handle_new_user_message(request):
         return _handle_error(request, "Invalid message request.")
 
     message = Message(form.cleaned_data["message"], True)
-
     publish("NEW_USER_MESSAGE", data={"message": message})
     return redirect("/chat")
 
@@ -199,6 +201,8 @@ def chat_controller(request):
 
 def chat_selection_view_controller(request):
     curr_user = get_current_user(request)
+    if curr_user is None:
+        return redirect("/accounts")
 
     limit = 5  # intital count of convos to be displayed
     if request.method == "POST":
@@ -228,6 +232,9 @@ def chat_selection_view_controller(request):
 
 def chat_view_controller(request):
     curr_user = get_current_user(request)
+    if curr_user is None:
+        return redirect("/accounts")
+
     conv_id = request.session["conv_id"]
     result = QueryRetrieveMessages.execute(conv_id)
     messages = result["data"]

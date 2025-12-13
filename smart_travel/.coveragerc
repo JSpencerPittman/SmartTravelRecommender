@@ -1,0 +1,15 @@
+[run]
+omit =
+    */chat/management/commands/*
+    */migrations/*
+    */tests.py
+    */test_*.py
+    */__pycache__/*
+    */venv/*
+    */virtualenv/*
+    asgi.py
+    wsgi.py
+
+[report]
+exclude_lines =
+    pragma: no cover

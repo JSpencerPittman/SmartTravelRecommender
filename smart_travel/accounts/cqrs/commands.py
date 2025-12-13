@@ -14,15 +14,12 @@ class CommandCreateUser(CQRSCommand):
 
     @staticmethod
     def execute(first_name: str, last_name: str, user_name: str, password: str) -> bool:
-        try:
-            AccountModel.objects.create(
-                first_name=first_name,
-                last_name=last_name,
-                user_name=user_name,
-                password_hash=make_password(password),
-            )
-        except Exception:
-            return False
+        AccountModel.objects.create(
+            first_name=first_name,
+            last_name=last_name,
+            user_name=user_name,
+            password_hash=make_password(password),
+        )
 
         publish(CommandCreateUser.EVENT_NAME)
         return True
