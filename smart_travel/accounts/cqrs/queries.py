@@ -78,4 +78,4 @@ class QueryGetCurrentUser(CQRSQuery):
 
     @staticmethod
     def publish_event():
-        publish_event(QueryGetCurrentUser.EVENT_NAME)
+        publish(QueryGetCurrentUser.EVENT_NAME)
