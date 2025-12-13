@@ -26,5 +26,10 @@ urlpatterns = [
         views.handle_new_user_message,
         name="operation__new_user_message",
     ),
+    path(
+        "operation/download_pdf",
+        views.handle_download_pdf,
+        name="operation__download_pdf",
+    ),
     path("event_stream", views.event_stream, name="event_stream"),
 ]
