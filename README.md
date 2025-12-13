@@ -27,3 +27,16 @@ python manage.py load_sample_data
 # Run development server
 python manage.py runserver
 ```
+
+### Testing
+Unit and Integration testing
+```bash
+python manage.py test accounts chat integration_tests
+```
+
+Coverage
+```bash
+coverage run --source='.' manage.py test accounts chat integration_tests
+coverage report
+coverage html
+```

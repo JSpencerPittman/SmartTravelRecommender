@@ -299,7 +299,7 @@ class AccountsViewTests(TestCase):
         form_data = {"user_id": "testuser", "password": "testpass123"}
         response = self.client.post(reverse("login"), data=form_data, follow=False)
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, "/chat")
+        self.assertEqual(response.url, "/chat/")
         self.assertIn("user_id", self.client.session)
 
     def test_login_view_post_invalid_credentials(self):

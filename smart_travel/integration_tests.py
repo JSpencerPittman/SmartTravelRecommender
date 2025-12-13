@@ -1,14 +1,15 @@
-from django.test import TestCase, Client
-from django.urls import reverse
-from django.utils import timezone
-from django.contrib.auth.hashers import make_password
-from pathlib import Path
-import tempfile
 import shutil
-from unittest.mock import patch, MagicMock
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
 from accounts.models import AccountModel
 from chat.models import ConversationModel
 from chat.utility.message import Message
+from django.contrib.auth.hashers import make_password  # type: ignore
+from django.test import Client, TestCase  # type: ignore
+from django.urls import reverse  # type: ignore
+from django.utils import timezone  # type: ignore
 
 
 class UserAuthenticationWorkflowTests(TestCase):
