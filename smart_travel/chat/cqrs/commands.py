@@ -108,7 +108,6 @@ class CommandSaveMessage(CQRSCommand):
         Args:
             message (Message): Message to be saved.
         """
-
         try:
             convo = _retrieve_convo_by_id(conv_id)
             _ensure_file_exists(convo.abs_path)

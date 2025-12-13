@@ -1,21 +1,86 @@
-from django.test import TestCase, Client
-from django.urls import reverse
-from django.utils import timezone
-from django.contrib.auth.hashers import make_password
-from pathlib import Path
-import tempfile
 import shutil
-from unittest.mock import patch, MagicMock
+import tempfile
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Optional
+from unittest.mock import patch
+
 from accounts.models import AccountModel
-from .models import ConversationModel
-from .forms import NewChatForm, MessageForm
-from .utility.message import Message
+from chat.views import event_handler__new_conversation, event_handler__new_user_message
+from django.contrib.auth.hashers import make_password  # type: ignore
+from django.test import Client, TestCase, TransactionTestCase  # type: ignore
+from django.urls import reverse  # type: ignore
+from django.utils import timezone  # type: ignore
+from eda.event_dispatcher import get_event, subscribe
+
 from .cqrs.commands import (
     CommandCreateConversation,
     CommandDeleteConversation,
     CommandSaveMessage,
 )
 from .cqrs.queries import QueryFindConversation, QueryRetrieveMessages
+from .forms import MessageForm, NewChatForm
+from .models import ConversationModel
+from .utility.message import Message
+
+"""
+Mocked Classes
+"""
+
+MOCK__INITIALIZE_SESSION__RET_VAL = False
+MOCK__PROMPT_COMPLETION__RET_VAL = None
+
+
+class MockedChatbot:
+    def __init__(self, *_, **__):
+        pass
+
+    def initialize_session(self) -> bool:
+        return MOCK__INITIALIZE_SESSION__RET_VAL
+
+    def prompt_completion(self, _: list[Message]) -> Optional[str]:
+        return MOCK__PROMPT_COMPLETION__RET_VAL
+
+
+@dataclass
+class MockRequest:
+    session: Any
+
+
+"""
+Event Handling
+"""
+
+EVENT_LISTENER_NAME = "TESTING"
+EVENT_HANDLER_CALLBACKS = {
+    "NEW_CONVERSATION": event_handler__new_conversation,
+    "NEW_USER_MESSAGE": event_handler__new_user_message,
+}
+for event in EVENT_HANDLER_CALLBACKS.keys():
+    subscribe(EVENT_LISTENER_NAME, event)
+
+
+def poll_event(name: Optional[str] = None, timeout: int = 2) -> Any:
+    start = time.time()
+    while (event := get_event(EVENT_LISTENER_NAME)) is None or (
+        name is not None and event["name"] != name
+    ):
+        if time.time() - start > timeout:
+            break
+        continue
+    return event
+
+
+def poll_and_handle_event(request, name: Optional[str] = None):
+    event = poll_event(name)
+    if event["name"] in EVENT_HANDLER_CALLBACKS:
+        EVENT_HANDLER_CALLBACKS[event["name"]](request, event)
+
+
+"""
+Tests
+"""
 
 
 class ConversationModelTests(TestCase):
@@ -498,3 +563,92 @@ class ChatViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.client.session.get("conv_id"), conversation.id)
+
+
+class AgentMessageSubmissionTests(TransactionTestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = AccountModel.objects.create(
+            first_name="Test",
+            last_name="User",
+            user_name="testuser",
+            password_hash=make_password("testpass123"),
+        )
+
+        session = self.client.session
+        session["user_id"] = self.user.id
+        session.save()
+
+        CommandCreateConversation.execute("Agent Test", self.user)
+        conv_id = poll_event()["data"]["conv_id"]
+        session["conv_id"] = conv_id
+        session.save()
+        self.conversation = ConversationModel.objects.filter(id=conv_id).first()
+
+    @patch("chat.views.chatbot", new_callable=MockedChatbot)
+    def test_submit_message_to_agent(self, mock_chatbot):
+        global MOCK__PROMPT_COMPLETION__RET_VAL
+        MOCK__PROMPT_COMPLETION__RET_VAL = (
+            "I can help you plan your trip to Paris! The Eiffel Tower is a must-see."
+        )
+
+        try:
+            response = self.client.post(
+                reverse("operation__new_user_message"),
+                data={"message": "I want to visit Paris"},
+            )
+            poll_and_handle_event(MockRequest(self.client.session), "NEW_USER_MESSAGE")
+            self.assertEqual(response.status_code, 302)
+            poll_event("NEW_AGENT_MESSAGE")
+
+            conv_file_path = self.conversation.abs_path
+            assert conv_file_path.exists()
+            content = conv_file_path.read_text()
+            self.assertIn("### User\nI want to visit Paris\n", content)
+            self.assertIn("### Agent\n", content)
+            self.assertIn("I can help you plan your trip to Paris!", content)
+        finally:
+            if conv_file_path.exists():
+                conv_file_path.unlink()
+            MOCK__PROMPT_COMPLETION__RET_VAL = None
+
+    @patch("chat.views.chatbot", new_callable=MockedChatbot)
+    def test_multiple_message_exchange(self, mock_chatbot):
+        global MOCK__PROMPT_COMPLETION__RET_VAL
+
+        try:
+            MOCK__PROMPT_COMPLETION__RET_VAL = (
+                "Tokyo is a vibrant city with amazing culture."
+            )
+            self.client.post(
+                reverse("operation__new_user_message"),
+                data={"message": "What about Tokyo?"},
+            )
+            poll_and_handle_event(MockRequest(self.client.session), "NEW_USER_MESSAGE")
+            poll_event("NEW_AGENT_MESSAGE")
+
+            MOCK__PROMPT_COMPLETION__RET_VAL = (
+                "Cherry blossom season is from late March to early April."
+            )
+            self.client.post(
+                reverse("operation__new_user_message"),
+                data={"message": "When is cherry blossom season?"},
+            )
+            poll_and_handle_event(MockRequest(self.client.session), "NEW_USER_MESSAGE")
+            poll_event("NEW_AGENT_MESSAGE")
+
+            conv_file_path = self.conversation.abs_path
+            assert conv_file_path.exists()
+            content = conv_file_path.read_text()
+            self.assertIn("### User\nWhat about Tokyo?\n", content)
+            self.assertIn("Tokyo is a vibrant city", content)
+            self.assertIn("### User\nWhen is cherry blossom season?\n", content)
+            self.assertIn("Cherry blossom season", content)
+
+            messages = Message.deserialize_messages(content.split("\n"))
+            self.assertEqual(len([m for m in messages if m.is_user]), 2)
+            self.assertEqual(len([m for m in messages if not m.is_user]), 2)
+        finally:
+            if conv_file_path.exists():
+                conv_file_path.unlink()
+            MOCK__PROMPT_COMPLETION__RET_VAL = None

@@ -37,8 +37,8 @@ Auxillary
 def get_current_user(request) -> Optional[AccountModel]:
     curr_user = None
 
-    if DEBUG:
-        curr_user = AccountModel.objects.first()
+    if DEBUG:  # pragma: no cover
+        curr_user = AccountModel.objects.first()  # pragma: no cover
     else:
         curr_user = QueryGetCurrentUser.execute(request)["data"]
 
@@ -47,9 +47,9 @@ def get_current_user(request) -> Optional[AccountModel]:
 
 def _submit_message_to_agent(request, last_user_message: str, conv_id: int):
     message: Optional[Message] = None
-    if DEBUG:
-        time.sleep(1)
-        message = Message("RESPONSE", False)
+    if DEBUG:  # pragma: no cover
+        time.sleep(1)  # pragma: no cover
+        message = Message("RESPONSE", False)  # pragma: no cover
     else:
         prev_messages = QueryRetrieveMessages.execute(request.session["conv_id"])[
             "data"
@@ -183,7 +183,6 @@ def handle_new_user_message(request):
         return _handle_error(request, "Invalid message request.")
 
     message = Message(form.cleaned_data["message"], True)
-
     publish("NEW_USER_MESSAGE", data={"message": message})
     return redirect("/chat")
 

@@ -1,6 +1,6 @@
-from django.test import TestCase, Client
-from django.urls import reverse
-from django.contrib.sessions.middleware import SessionMiddleware
+from django.test import TestCase, Client  # type: ignore
+from django.urls import reverse  # type: ignore
+from django.contrib.sessions.middleware import SessionMiddleware  # type: ignore
 from .models import AccountModel
 from .forms import SignUpForm, LoginForm
 from .cqrs.commands import CommandCreateUser
@@ -139,7 +139,7 @@ class CommandCreateUserTests(TestCase):
         self.assertNotEqual(user.password_hash, "mypassword")
 
     def test_password_hashing(self):
-        from django.contrib.auth.hashers import check_password
+        from django.contrib.auth.hashers import check_password  # type: ignore
 
         result = CommandCreateUser.execute(
             first_name="Bob",

@@ -19,7 +19,6 @@ def _ensure_file_exists(abs_path: Path):
     Ensure this conversation's file exists. If it does not, then create the
     requisite directories with the conversation file.
     """
-
     if abs_path.exists():
         return
     if not abs_path.parent.exists():
@@ -78,7 +77,6 @@ class QueryFindConversation(CQRSQuery):
             )
         else:
             matches = list(ConversationModel.objects.filter(**search_query))
-
         publish(QueryFindConversation.EVENT_NAME)
         return QueryFindConversationResponse(status=True, data=matches)
 
