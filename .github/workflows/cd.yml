@@ -1,0 +1,60 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  run-tests-and-coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        working-directory: ./smart_travel
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run tests with coverage
+        working-directory: ./smart_travel
+        run: |
+          coverage run --source='.' manage.py test accounts chat integration_tests
+
+      - name: Generate coverage reports
+        working-directory: ./smart_travel
+        run: |
+          coverage html
+          coverage xml
+
+      - name: Prepare the webpage
+        working-directory: ./smart_travel
+        run: |
+          mkdir sites
+          mv htmlcov sites/
+          mv coverage.xml sites/
+
+      - name: Upload the artifacts
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./smart_travel/sites
+
+  deploy:
+    needs: run-tests-and-coverage
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Deploy the artifacts
+        uses: actions/deploy-pages@v4
