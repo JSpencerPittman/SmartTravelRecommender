@@ -6,6 +6,7 @@ from typing import Optional
 class Message(object):
     message: str
     is_user: bool
+    markdown: Optional[str] = None
 
     def serialize(self) -> str:
         """
