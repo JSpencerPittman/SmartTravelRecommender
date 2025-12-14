@@ -18,14 +18,14 @@ def _read_system_prompt() -> str:
 
 
 def _create_chatbot_message(
-    role: Literal["user", "assistant", "developer"], content: str
+    role: Literal["user", "assistant", "system"], content: str
 ) -> dict[str, str]:
     return {"role": role, "content": content}
 
 
 class Chatbot:
     def __init__(
-        self, model: str = "gpt-5", temperature: float = 0.7, top_p: float = 0.99
+        self, model: str = "gpt-5.1", temperature: float = 0.7, top_p: float = 0.99
     ):
         self._model: str = model
         self._temperature: float = temperature
@@ -45,7 +45,7 @@ class Chatbot:
     def prompt_completion(self, history: list[Message]) -> Optional[str]:
         assert self._client is not None
 
-        messages = [_create_chatbot_message("developer", _read_system_prompt())]
+        messages = [_create_chatbot_message("system", _read_system_prompt())]
         for msg in history:
             messages.append(
                 _create_chatbot_message(
@@ -53,9 +53,10 @@ class Chatbot:
                 )
             )
 
-        completion = self._client.chat.completions.create(
-            messages=messages,  # type: ignore
+        response = self._client.responses.create(
+            input=messages,  # type: ignore
             model=self._model,
+            tools=[{"type": "web_search"}],
         )
 
-        return completion.choices[0].message.content
+        return response.output_text
