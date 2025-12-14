@@ -10,39 +10,42 @@ Looking for highly-rated attractions near your current location? Our application
 Powered by a large language model and real-time web data, the Smart Travel Recommender generates custom itineraries that match your preferences, 
 budget, and travel style—whether you're planning ahead or exploring on the go.
 
-## Development Setup
-*We are in the development stage so usage of this application requires locally running it.*
-
+## Setup
 Once you've cloned the repository and created a virtual environment,
 ```bash
 pip install -r requirements.txt
 cd smart_travel
 ```
-
-This is a Django-based application so all commands will be run as `python manage.py <command>`.
+Before we start up the server you will need to get an API key for the OpenAI repository. Then you will need to set the `OPENAI_API_KEY` environment variable.
 ```bash
-# Load sample data (Optional)
-python manage.py load_sample_data
-
-# Run development server
+export OPENAI_API_KEY=...
+```
+Then we will need to establish the models in sqlite.
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+Now we can bootup the Django server.
+```bash
 python manage.py runserver
 ```
-
-### Testing
-Unit and Integration testing
+You will be able to find the application being hosted at `http://127.0.0.1:8000`.
+## Testing
+For unit & integration testing django offers us the ability to test using the `manage.py` script.
 ```bash
 python manage.py test accounts chat integration_tests
 ```
 
-Coverage
+To get coverage reports as well you can use the `coverage` library with the following sequence of commands.
 ```bash
 coverage run --source='.' manage.py test accounts chat integration_tests
 coverage report
 coverage html
 ```
 
-### Admin
+## Admin
+To access administrator pages you will need to create a new user using the following command.
 ```bash
 python manage.py createsuperuser
 ```
-Access http://127.0.0.1:8000/admin/usage-statistics
+For access to the usage statistics pages navigate to `http://127.0.0.1:8000/admin/usage-statistics`.
