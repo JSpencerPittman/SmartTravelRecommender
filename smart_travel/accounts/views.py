@@ -14,6 +14,11 @@ def signup_view(request):
 
 
 def login_view(request):
+    if "user_id" in request.session:
+        if "conv_id" in request.session:
+            del request.session["conv_id"]
+        return redirect("/chat")
+
     if request.method == "POST":
         form = LoginForm(request.POST)
         if form.is_valid():
@@ -26,7 +31,9 @@ def login_view(request):
             matches = result["data"]
             if len(matches) == 1:
                 request.session["user_id"] = matches[0].id
-                return redirect("/chat/")
+                if "conv_id" in request.session:
+                    del request.session["conv_id"]
+                return redirect("/chat")
     else:
         form = LoginForm()
 
@@ -36,4 +43,6 @@ def login_view(request):
 def logout_view(request):
     assert request.method == "POST"
     del request.session["user_id"]
+    if "conv_id" in request.session:
+        del request.session["conv_id"]
     return redirect("login")

@@ -21,7 +21,7 @@ from chatbot.pdf import PDFCreator
 from django.http.response import StreamingHttpResponse, HttpResponse  # type: ignore
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 from eda.event_dispatcher import EmittedEvent, get_event, publish, subscribe
-import markdown
+import markdown  # type: ignore
 
 PROJECT_DIR = Path(__file__).parent.parent
 DEBUG = False
@@ -29,7 +29,7 @@ DEBUG = False
 chatbot = Chatbot()
 if not DEBUG:
     chatbot.initialize_session()
-
+    assert chatbot._client is not None
 
 """
 Auxillary
@@ -263,7 +263,6 @@ def chat_view_controller(request):
     conv_id = request.session["conv_id"]
     result = QueryRetrieveMessages.execute(conv_id)
     messages = result["data"]
-
 
     for message in messages:
         if message.markdown is None:
