@@ -21,6 +21,7 @@ from chatbot.pdf import PDFCreator
 from django.http.response import StreamingHttpResponse, HttpResponse  # type: ignore
 from django.shortcuts import HttpResponseRedirect, redirect, render  # type: ignore
 from eda.event_dispatcher import EmittedEvent, get_event, publish, subscribe
+import markdown
 
 PROJECT_DIR = Path(__file__).parent.parent
 DEBUG = False
@@ -262,6 +263,12 @@ def chat_view_controller(request):
     conv_id = request.session["conv_id"]
     result = QueryRetrieveMessages.execute(conv_id)
     messages = result["data"]
+
+
+    for message in messages:
+        if message.markdown is None:
+            md = markdown.Markdown(extensions=["fenced_code"])
+            message.markdown = md.convert(message.message)
 
     context = {
         "chat_id": conv_id,
