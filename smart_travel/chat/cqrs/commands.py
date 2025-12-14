@@ -2,7 +2,7 @@ import hashlib
 from pathlib import Path
 
 from accounts.models import AccountModel
-from chat.models import ConversationModel
+from chat.models import ConversationModel, ConvoRepo
 from chat.utility.message import Message
 from django.utils import timezone  # type: ignore
 from eda.cqrs import CQRSCommand
@@ -59,9 +59,13 @@ class CommandCreateConversation(CQRSCommand):
         try:
             new_convo = ConversationModel.objects.create(
                 title=title,
-                user=user,
                 file_name=create_unique_filename(title, user.user_name),
                 time_of_last_message=timezone.now(),
+            )
+            #record new conversation in convoRepo
+            repoCopy = ConvoRepo.objects.create(
+                userId = user.id,
+                convoId = new_convo.id
             )
         except Exception:
             return False
@@ -79,12 +83,12 @@ class CommandDeleteConversation(CQRSCommand):
     EVENT_NAME = "DELETE_CONVERSATION"
 
     @staticmethod
-    def execute(user_id, conv_id: int) -> bool:
-        try:
+    def execute(conv_id: int) -> bool:
+        try:    
             convo = _retrieve_convo_by_id(conv_id)
-            if convo.user.id != user_id:
-                return False
+            repoInst =  list(ConvoRepo.objects.filter(convoId= conv_id)) [0]
             convo.delete()
+            repoInst.delete()
         except Exception:
             return False
 

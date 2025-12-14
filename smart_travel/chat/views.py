@@ -14,7 +14,7 @@ from chat.cqrs.commands import (
 )
 from chat.cqrs.queries import QueryFindConversation, QueryRetrieveMessages
 from chat.forms import MessageForm, NewChatForm
-from chat.models import ConversationModel
+from chat.models import ConversationModel, ConvoRepo
 from chat.utility.message import Message
 from chatbot.travel_chatbot import Chatbot
 from chatbot.pdf import PDFCreator
@@ -152,7 +152,7 @@ def handle_select_chat(request, conv_id: int):
 def handle_delete_chat(request, conv_id: int):
     curr_user = get_current_user(request)
     assert curr_user is not None
-    CommandDeleteConversation.execute(curr_user.id, conv_id)
+    CommandDeleteConversation.execute(conv_id)
     return redirect("/chat")
 
 
@@ -236,8 +236,7 @@ def chat_selection_view_controller(request):
 
     result = QueryFindConversation.execute(curr_user, limit=limit)
     convos = [(convo.id, convo.title) for convo in result["data"]]
-    totalConvos = ConversationModel.objects.filter(user=curr_user).count()
-
+    totalConvos = ConvoRepo.objects.filter(userId=curr_user.id).count()
     error = request.session.get("error", None)
     if "error" in request.session:
         del request.session["error"]
