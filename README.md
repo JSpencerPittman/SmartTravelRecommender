@@ -40,3 +40,9 @@ coverage run --source='.' manage.py test accounts chat integration_tests
 coverage report
 coverage html
 ```
+
+### Admin
+```bash
+python manage.py createsuperuser
+```
+Access http://127.0.0.1:8000/admin/usage-statistics
