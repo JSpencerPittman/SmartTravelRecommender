@@ -28,7 +28,7 @@
         {% for message in messages %}
         <div class="message-cont">
             {% if message.is_user %}
-                <div class="message user-message">{{ message.markdown|safe }}</p>
+                <div class="message user-message">{{ message.message }}</p>
             {% else %}
                 <div class="message agent-message">{{ message.markdown|safe }}</p>
             {% endif %}
