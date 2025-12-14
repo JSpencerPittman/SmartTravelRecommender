@@ -17,7 +17,7 @@ def login_view(request):
     if "user_id" in request.session:
         if "conv_id" in request.session:
             del request.session["conv_id"]
-        return redirect("/chat")
+        return redirect("chat")
 
     if request.method == "POST":
         form = LoginForm(request.POST)
@@ -33,7 +33,7 @@ def login_view(request):
                 request.session["user_id"] = matches[0].id
                 if "conv_id" in request.session:
                     del request.session["conv_id"]
-                return redirect("/chat")
+                return redirect("chat")
     else:
         form = LoginForm()
 

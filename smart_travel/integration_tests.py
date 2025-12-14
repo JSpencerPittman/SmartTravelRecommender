@@ -22,7 +22,7 @@ MOCK__PROMPT_COMPLETION__RET_VAL = None
 
 class MockedChatbot:
     def __init__(self, *_, **__):
-        pass
+        self._client = 1  # Not None
 
     def initialize_session(self) -> bool:
         return False
