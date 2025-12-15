@@ -89,6 +89,9 @@ class EventHandlerAction(Enum):
 
 def event_handler__new_conversation(request, event: EmittedEvent) -> EventHandlerAction:
     if "conv_id" not in request.session:
+        curr_user = get_current_user(request)
+        assert curr_user is not None
+        ConvoRepo._add_Repo_inst(curr_user.id, event["data"]["conv_id"])
         request.session["conv_id"] = event["data"]["conv_id"]
         request.session.save()
         return EventHandlerAction.RELOAD
@@ -108,12 +111,16 @@ def event_handler__new_user_message(request, event: EmittedEvent) -> EventHandle
     thread.start()
     return EventHandlerAction.RELOAD
 
+def event_handler__delete_message(request, event:EmittedEvent) -> EventHandlerAction:
+    ConvoRepo._delete_Repo_inst(event["data"]["conv_id"])
+    return EventHandlerAction.RELOAD
+
 
 EVENT_HANDLER_CALLBACKS = {
     "NEW_CONVERSATION": event_handler__new_conversation,
     "NEW_USER_MESSAGE": event_handler__new_user_message,
     "NEW_AGENT_MESSAGE": EventHandlerAction.RELOAD,
-    "DELETE_CONVERSATION": EventHandlerAction.RELOAD,
+    "DELETE_CONVERSATION": event_handler__delete_message,
 }
 SUBSCRIBER__EVENT_STREAM = "event_stream"
 
@@ -166,7 +173,7 @@ def handle_new_chat(request):
 
     curr_user = get_current_user(request)
     assert curr_user is not None
-    CommandCreateConversation.execute(form.cleaned_data["title"], curr_user)
+    CommandCreateConversation.execute(form.cleaned_data["title"])
 
     return redirect("/chat")
 

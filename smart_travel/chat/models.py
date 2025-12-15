@@ -11,6 +11,22 @@ class ConvoRepo(models.Model):
     userId = models.CharField(max_length = 50)
     convoId = models.CharField(max_length = 50)
 
+    @classmethod
+    def _add_Repo_inst(cls, user_id : str, conv_id : str) -> bool:
+        try:
+            cls.objects.create(
+                    userId = user_id,
+                    convoId = conv_id,
+                )
+            return True
+        except Exception:
+            return  False
+
+    @classmethod
+    def _delete_Repo_inst(cls, conv_id: str) -> bool:
+        repoInst =  list(cls.objects.filter(convoId = conv_id))[0]
+        repoInst.delete()
+        return True
 
 
 class ConversationModel(models.Model):

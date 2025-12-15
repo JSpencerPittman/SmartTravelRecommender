@@ -23,7 +23,7 @@ class CommandCreateConversation(CQRSCommand):
     EVENT_NAME = "NEW_CONVERSATION"
 
     @staticmethod
-    def execute(title: str, user: AccountModel) -> bool:
+    def execute(title: str) -> bool:
         """
         Create a new conversation.
 
@@ -35,7 +35,7 @@ class CommandCreateConversation(CQRSCommand):
             ConversationModel: New conversation.
         """
 
-        def create_unique_filename(title: str, user_name: str) -> str:
+        def create_unique_filename(title: str, chatId: int) -> str:
             """
             Create a unique filename using the title and user name.
 
@@ -53,20 +53,16 @@ class CommandCreateConversation(CQRSCommand):
             """
 
             title_hash = hashlib.sha256(title.encode("utf-8")).hexdigest()
-            user_name_hash = hashlib.sha256(user_name.encode("utf-8")).hexdigest()
+            user_name_hash = hashlib.sha256(str(chatId).encode("utf-8")).hexdigest()
             return f"{user_name_hash}__{title_hash}.txt"
 
         try:
             new_convo = ConversationModel.objects.create(
                 title=title,
-                file_name=create_unique_filename(title, user.user_name),
                 time_of_last_message=timezone.now(),
             )
-            #record new conversation in convoRepo
-            repoCopy = ConvoRepo.objects.create(
-                userId = user.id,
-                convoId = new_convo.id
-            )
+            new_convo.file_name = create_unique_filename(new_convo.title, new_convo.id)
+            new_convo.save()
         except Exception:
             return False
 
@@ -86,13 +82,11 @@ class CommandDeleteConversation(CQRSCommand):
     def execute(conv_id: int) -> bool:
         try:    
             convo = _retrieve_convo_by_id(conv_id)
-            repoInst =  list(ConvoRepo.objects.filter(convoId= conv_id)) [0]
             convo.delete()
-            repoInst.delete()
         except Exception:
             return False
 
-        publish(CommandDeleteConversation.EVENT_NAME)
+        publish(CommandDeleteConversation.EVENT_NAME, {"conv_id": conv_id})
         return True
 
 
