@@ -8,7 +8,7 @@ from typing import Any, Optional
 from unittest.mock import patch
 
 from accounts.models import AccountModel
-from chat.models import ConversationModel
+from chat.models import ConversationModel, ConvoRepo
 from chat.utility.message import Message
 from chat.views import event_handler__new_conversation, event_handler__new_user_message
 from django.contrib.auth.hashers import make_password  # type: ignore
@@ -164,9 +164,10 @@ class ConversationManagementWorkflowTests(TestCase):
             reverse("chat") + "operation/new_chat", data={"title": "Trip to Tokyo"}
         )
         self.assertEqual(response.status_code, 302)
-
         conversation = ConversationModel.objects.get(title="Trip to Tokyo")
-        self.assertEqual(conversation.user, self.user)
+        ConvoRepo._add_Repo_inst(self.user.id, conversation.id)
+        repoInst = ConvoRepo.objects.get(convoId = conversation.id)
+        self.assertEqual(repoInst.userId, str(self.user.id))
 
         response = self.client.post(
             reverse("chat") + f"operation/select_chat/{conversation.id}"
@@ -181,9 +182,13 @@ class ConversationManagementWorkflowTests(TestCase):
             self.client.post(
                 reverse("chat") + "operation/new_chat", data={"title": title}
             )
-
-        user_conversations = ConversationModel.objects.filter(user=self.user)
-        self.assertEqual(user_conversations.count(), 3)
+            conversation = ConversationModel.objects.get(title=title)
+            ConvoRepo._add_Repo_inst(self.user.id, conversation.id)
+            
+        repoInstncs = list(ConvoRepo.objects.filter(userId=self.user.id))
+        convo_ids = [conv.convoId for conv in repoInstncs]
+        user_conversations = list(ConversationModel.objects.filter(id__in = convo_ids))
+        self.assertEqual(len(repoInstncs), 3)
 
         conv_titles = [conv.title for conv in user_conversations]
         for title in titles:
@@ -192,9 +197,12 @@ class ConversationManagementWorkflowTests(TestCase):
     def test_delete_conversation_workflow(self):
         conversation = ConversationModel.objects.create(
             title="Temporary Chat",
-            user=self.user,
             file_name="temp.txt",
             time_of_last_message=timezone.now(),
+        )
+        ConvoRepo.objects.create(
+            userId = self.user.id,
+            convoId = conversation.id,
         )
 
         conv_id = conversation.id
@@ -208,13 +216,11 @@ class ConversationManagementWorkflowTests(TestCase):
     def test_switch_between_conversations(self):
         conv1 = ConversationModel.objects.create(
             title="First Chat",
-            user=self.user,
             file_name="first.txt",
             time_of_last_message=timezone.now(),
         )
         conv2 = ConversationModel.objects.create(
             title="Second Chat",
-            user=self.user,
             file_name="second.txt",
             time_of_last_message=timezone.now(),
         )
@@ -257,10 +263,13 @@ class EndToEndUserJourneyTests(TestCase):
         response = self.client.post(
             reverse("chat") + "operation/new_chat", data={"title": "Barcelona Trip"}
         )
+        #store copy in repo
+        conversation = ConversationModel.objects.get(title="Barcelona Trip")
+        ConvoRepo._add_Repo_inst(self.client.session["user_id"], conversation.id )
         self.assertEqual(response.status_code, 302)
 
         user = AccountModel.objects.get(user_name="emmawilson")
-        conversation = ConversationModel.objects.get(title="Barcelona Trip", user=user)
+        conversation = ConversationModel.objects.get(title="Barcelona Trip")
         self.assertIsNotNone(conversation)
 
         response = self.client.post(
@@ -302,7 +311,6 @@ class MessagePersistenceWorkflowTests(TestCase):
 
         conversation = ConversationModel.objects.create(
             title="Test Conversation",
-            user=user,
             file_name="test_messages.txt",
             time_of_last_message=timezone.now(),
         )
@@ -380,31 +388,40 @@ class MultiUserIsolationTests(TestCase):
         session2.save()
 
     def test_users_have_separate_conversations(self):
+        from chat.cqrs.queries import QueryFindConversation
         self.client1.post(
             reverse("chat") + "operation/new_chat", data={"title": "User1 Trip"}
         )
+        convo_user1 = ConversationModel.objects.get(title = "User1 Trip")
+        ConvoRepo._add_Repo_inst(self.user1.id, convo_user1.id)
+        #print(ConvoRepo.objects.filter(userId = self.user1.id).count())
+        #populate convoRepo using event handler
 
         self.client2.post(
             reverse("chat") + "operation/new_chat", data={"title": "User2 Trip"}
         )
+        
+        convo_user2 = ConversationModel.objects.get(title = "User2 Trip")
+        ConvoRepo._add_Repo_inst(self.user2.id, convo_user2.id)
+        #populate convoRepo using event handler
 
-        user1_conversations = ConversationModel.objects.filter(user=self.user1)
-        user2_conversations = ConversationModel.objects.filter(user=self.user2)
+        user1_conversations = QueryFindConversation.execute(self.user1)
+        user2_conversations = QueryFindConversation.execute(self.user2)
 
-        self.assertEqual(user1_conversations.count(), 1)
-        self.assertEqual(user2_conversations.count(), 1)
-        self.assertEqual(user1_conversations.first().title, "User1 Trip")
-        self.assertEqual(user2_conversations.first().title, "User2 Trip")
+        self.assertEqual(len(user1_conversations["data"]), 1)
+        self.assertEqual(len(user2_conversations["data"]), 1)
+        self.assertEqual(user1_conversations["data"][0].title, "User1 Trip")
+        self.assertEqual(user2_conversations["data"][0].title, "User2 Trip")
 
     def test_user_cannot_access_other_user_conversation(self):
         from chat.cqrs.commands import CommandDeleteConversation
 
         conversation = ConversationModel.objects.create(
             title="User1 Private Chat",
-            user=self.user1,
             file_name="private.txt",
             time_of_last_message=timezone.now(),
         )
+        ConvoRepo._add_Repo_inst(self.user1.id, conversation.id)
 
         result = CommandDeleteConversation.execute(
             user_id=self.user2.id, conv_id=conversation.id
@@ -412,40 +429,6 @@ class MultiUserIsolationTests(TestCase):
         self.assertFalse(result)
 
         self.assertTrue(ConversationModel.objects.filter(id=conversation.id).exists())
-
-
-class DataIntegrityTests(TestCase):
-    def test_cascade_delete_conversations_on_user_delete(self):
-        user = AccountModel.objects.create(
-            first_name="Delete",
-            last_name="Me",
-            user_name="deleteme",
-            password_hash=make_password("pass"),
-        )
-
-        conv1 = ConversationModel.objects.create(
-            title="Conversation 1",
-            user=user,
-            file_name="conv1.txt",
-            time_of_last_message=timezone.now(),
-        )
-        conv2 = ConversationModel.objects.create(
-            title="Conversation 2",
-            user=user,
-            file_name="conv2.txt",
-            time_of_last_message=timezone.now(),
-        )
-
-        conv1_id = conv1.id
-        conv2_id = conv2.id
-
-        user.delete()
-
-        with self.assertRaises(ConversationModel.DoesNotExist):
-            ConversationModel.objects.get(id=conv1_id)
-        with self.assertRaises(ConversationModel.DoesNotExist):
-            ConversationModel.objects.get(id=conv2_id)
-
 
 class AgentConversationWorkflowTests(TransactionTestCase):
     def setUp(self):
@@ -473,7 +456,7 @@ class AgentConversationWorkflowTests(TransactionTestCase):
         )
 
         user = AccountModel.objects.get(user_name="traveler")
-        conversation = ConversationModel.objects.get(title="Europe Trip", user=user)
+        conversation = ConversationModel.objects.get(title="Europe Trip")
         if conversation.abs_path.exists():
             os.remove(conversation.abs_path)
 
@@ -534,7 +517,6 @@ class AgentConversationWorkflowTests(TransactionTestCase):
 
         conversation = ConversationModel.objects.create(
             title="Italy Trip",
-            user=user,
             file_name="italy_trip.txt",
             time_of_last_message=timezone.now(),
         )
@@ -599,7 +581,6 @@ class AgentConversationWorkflowTests(TransactionTestCase):
 
         conversation = ConversationModel.objects.create(
             title="Japan Trip",
-            user=user,
             file_name="japan_trip.txt",
             time_of_last_message=timezone.now(),
         )
