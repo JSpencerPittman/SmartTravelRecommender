@@ -23,7 +23,17 @@ jobs:
         run: |
           pip install -r ../requirements.txt
 
+      - name: Make migrations
+        working-directory: ./smart_travel
+        run: |
+          python manage.py makemigrations
+
+      - name: Run migrations
+        working-directory: ./smart_travel
+        run: |
+          python manage.py migrate
+
       - name: Run tests
         working-directory: ./smart_travel
         run: |
-          python manage.py test accounts chat integration_tests
+          python manage.py test accounts chat chatbot integration_tests
