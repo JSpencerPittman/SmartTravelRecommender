@@ -70,7 +70,7 @@ class QueryFindConversation(CQRSQuery):
         #    search_query["convoId"] = chat_id
 
         if chat_id is None:
-            convos = list(ConvoRepo.objects.filter(userId = user.id))   
+            convos = list(ConvoRepo.objects.filter(userId = user.id)) 
             convos_ids = [convo.convoId for convo in convos]                      
             matches = list(
                 ConversationModel.objects.filter(id__in=convos_ids).order_by(

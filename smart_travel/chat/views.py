@@ -159,7 +159,7 @@ def handle_select_chat(request, conv_id: int):
 def handle_delete_chat(request, conv_id: int):
     curr_user = get_current_user(request)
     assert curr_user is not None
-    CommandDeleteConversation.execute(conv_id)
+    CommandDeleteConversation.execute(curr_user.id, conv_id)
     return redirect("/chat")
 
 
