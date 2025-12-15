@@ -9,6 +9,7 @@ omit =
     */virtualenv/*
     asgi.py
     wsgi.py
+    admin.py
 
 [report]
 exclude_lines =

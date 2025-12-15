@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import time
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional
 from unittest.mock import patch
@@ -563,6 +564,134 @@ class ChatViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.client.session.get("conv_id"), conversation.id)
+
+
+class HandleDownloadPDFTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = AccountModel.objects.create(
+            first_name="John",
+            last_name="Doe",
+            user_name="johndoe",
+            password_hash=make_password("testpass123"),
+        )
+
+        session = self.client.session
+        session["user_id"] = self.user.id
+        session["conv_id"] = 1
+        session.save()
+
+    @patch("chat.views.QueryRetrieveMessages.execute")
+    @patch("chat.views.PDFCreator")
+    def test_handle_download_pdf_success(self, mock_pdf_creator, mock_retrieve_messages):
+        # Setup mock messages
+        messages = [
+            Message(message="I want to visit Paris", is_user=True),
+            Message(message="Paris is a wonderful destination!", is_user=False),
+            Message(message="What about the Eiffel Tower?", is_user=True),
+        ]
+
+        mock_retrieve_messages.return_value = {
+            "status": True,
+            "data": messages,
+            "title": "Paris Trip Planning"
+        }
+
+        # Setup mock PDF creator
+        mock_pdf_instance = mock_pdf_creator.return_value
+        mock_pdf_bytes = b"Mock PDF content"
+        mock_pdf_instance.create.return_value = BytesIO(mock_pdf_bytes)
+
+        response = self.client.get(reverse("operation__download_pdf"))
+
+        # Verify QueryRetrieveMessages was called with correct conv_id
+        mock_retrieve_messages.assert_called_once_with(1)
+
+        # Verify PDFCreator was instantiated with correct parameters
+        self.assertEqual(mock_pdf_creator.call_count, 1)
+        call_args = mock_pdf_creator.call_args
+        self.assertEqual(call_args[0][0], "Paris Trip Planning")  # title
+
+        # Verify serialized message content
+        expected_content = (
+            "John:\nI want to visit Paris\n"
+            "Travel Assistant:\nParis is a wonderful destination!\n"
+            "John:\nWhat about the Eiffel Tower?"
+        )
+        self.assertEqual(call_args[0][1], expected_content)  # content
+
+        # Verify response
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertEqual(
+            response["Content-Disposition"],
+            'attachment; filename="travel-itenerary.pdf"'
+        )
+        self.assertEqual(response.content, mock_pdf_bytes)
+
+    @patch("chat.views.get_current_user")
+    def test_handle_download_pdf_no_user(self, mock_get_current_user):
+        # Setup mock to return None (no authenticated user)
+        mock_get_current_user.return_value = None
+
+        response = self.client.get(reverse("operation__download_pdf"))
+
+        # Verify redirect to /chat
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/chat")
+
+    @patch("chat.views.QueryRetrieveMessages.execute")
+    @patch("chat.views.PDFCreator")
+    def test_handle_download_pdf_empty_messages(self, mock_pdf_creator, mock_retrieve_messages):
+        # Setup mock with no messages
+        mock_retrieve_messages.return_value = {
+            "status": True,
+            "data": [],
+            "title": "Empty Conversation"
+        }
+
+        mock_pdf_instance = mock_pdf_creator.return_value
+        mock_pdf_bytes = b"Mock PDF content"
+        mock_pdf_instance.create.return_value = BytesIO(mock_pdf_bytes)
+
+        response = self.client.get(reverse("operation__download_pdf"))
+
+        # Verify PDFCreator was called with empty content
+        call_args = mock_pdf_creator.call_args
+        self.assertEqual(call_args[0][0], "Empty Conversation")
+        self.assertEqual(call_args[0][1], "")  # Empty content
+
+        self.assertEqual(response.status_code, 200)
+
+    @patch("chat.views.QueryRetrieveMessages.execute")
+    @patch("chat.views.PDFCreator")
+    def test_handle_download_pdf_agent_only_messages(self, mock_pdf_creator, mock_retrieve_messages):
+        # Setup mock with only agent messages
+        messages = [
+            Message(message="Welcome! How can I help you?", is_user=False),
+            Message(message="I can provide travel recommendations.", is_user=False),
+        ]
+
+        mock_retrieve_messages.return_value = {
+            "status": True,
+            "data": messages,
+            "title": "Agent Welcome"
+        }
+
+        mock_pdf_instance = mock_pdf_creator.return_value
+        mock_pdf_bytes = b"Mock PDF content"
+        mock_pdf_instance.create.return_value = BytesIO(mock_pdf_bytes)
+
+        response = self.client.get(reverse("operation__download_pdf"))
+
+        # Verify serialized message content has agent messages
+        call_args = mock_pdf_creator.call_args
+        expected_content = (
+            "Travel Assistant:\nWelcome! How can I help you?\n"
+            "Travel Assistant:\nI can provide travel recommendations."
+        )
+        self.assertEqual(call_args[0][1], expected_content)
+        self.assertEqual(response.status_code, 200)
 
 
 class AgentMessageSubmissionTests(TransactionTestCase):

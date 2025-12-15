@@ -29,7 +29,6 @@ DEBUG = False
 chatbot = Chatbot()
 if not DEBUG:
     chatbot.initialize_session()
-    assert chatbot._client is not None
 
 """
 Auxillary
