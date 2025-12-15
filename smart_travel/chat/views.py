@@ -14,7 +14,7 @@ from chat.cqrs.commands import (
 )
 from chat.cqrs.queries import QueryFindConversation, QueryRetrieveMessages
 from chat.forms import MessageForm, NewChatForm
-from chat.models import ConversationModel
+from chat.models import ConversationModel, ConvoRepo
 from chat.utility.message import Message
 from chatbot.travel_chatbot import Chatbot
 from chatbot.pdf import PDFCreator
@@ -88,6 +88,9 @@ class EventHandlerAction(Enum):
 
 def event_handler__new_conversation(request, event: EmittedEvent) -> EventHandlerAction:
     if "conv_id" not in request.session:
+        curr_user = get_current_user(request)
+        assert curr_user is not None
+        ConvoRepo._add_Repo_inst(curr_user.id, event["data"]["conv_id"])
         request.session["conv_id"] = event["data"]["conv_id"]
         request.session.save()
         return EventHandlerAction.RELOAD
@@ -107,12 +110,16 @@ def event_handler__new_user_message(request, event: EmittedEvent) -> EventHandle
     thread.start()
     return EventHandlerAction.RELOAD
 
+def event_handler__delete_message(request, event:EmittedEvent) -> EventHandlerAction:
+    ConvoRepo._delete_Repo_inst(event["data"]["conv_id"])
+    return EventHandlerAction.RELOAD
+
 
 EVENT_HANDLER_CALLBACKS = {
     "NEW_CONVERSATION": event_handler__new_conversation,
     "NEW_USER_MESSAGE": event_handler__new_user_message,
     "NEW_AGENT_MESSAGE": EventHandlerAction.RELOAD,
-    "DELETE_CONVERSATION": EventHandlerAction.RELOAD,
+    "DELETE_CONVERSATION": event_handler__delete_message,
 }
 SUBSCRIBER__EVENT_STREAM = "event_stream"
 
@@ -165,7 +172,7 @@ def handle_new_chat(request):
 
     curr_user = get_current_user(request)
     assert curr_user is not None
-    CommandCreateConversation.execute(form.cleaned_data["title"], curr_user)
+    CommandCreateConversation.execute(form.cleaned_data["title"])
 
     return redirect("/chat")
 
@@ -235,8 +242,7 @@ def chat_selection_view_controller(request):
 
     result = QueryFindConversation.execute(curr_user, limit=limit)
     convos = [(convo.id, convo.title) for convo in result["data"]]
-    totalConvos = ConversationModel.objects.filter(user=curr_user).count()
-
+    totalConvos = ConvoRepo.objects.filter(userId=curr_user.id).count()
     error = request.session.get("error", None)
     if "error" in request.session:
         del request.session["error"]

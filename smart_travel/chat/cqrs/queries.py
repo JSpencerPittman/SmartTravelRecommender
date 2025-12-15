@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from accounts.models import AccountModel
-from chat.models import ConversationModel
+from chat.models import ConversationModel, ConvoRepo
 from eda.cqrs import CQRSQuery, CQRSQueryResponse
 from eda.event_dispatcher import publish
 from chat.utility.message import Message
@@ -65,18 +65,25 @@ class QueryFindConversation(CQRSQuery):
 
         search_query: dict[str, Any] = dict()
         if user is not None:
-            search_query["user"] = user
-        if chat_id is not None:
-            search_query["id"] = chat_id
+            search_query["userId"] = user.id
+        #if chat_id is not None:
+        #    search_query["convoId"] = chat_id
 
         if chat_id is None:
+            convos = list(ConvoRepo.objects.filter(userId = user.id)) 
+            convos_ids = [convo.convoId for convo in convos]                      
             matches = list(
-                ConversationModel.objects.filter(**search_query).order_by(
-                    "-time_of_last_message"
-                )[:limit]
+                ConversationModel.objects.filter(id__in=convos_ids).order_by(
+                "-time_of_last_message"
             )
+            )[:limit]
+            #matches = list(
+            #    ConversationModel.objects.filter(**search_query).order_by(
+            #        "-time_of_last_message"
+            #    )[:limit]
+            #)
         else:
-            matches = list(ConversationModel.objects.filter(**search_query))
+            matches = list(ConversationModel.objects.filter(id = chat_id))
         publish(QueryFindConversation.EVENT_NAME)
         return QueryFindConversationResponse(status=True, data=matches)
 

@@ -22,7 +22,7 @@ from .cqrs.commands import (
 )
 from .cqrs.queries import QueryFindConversation, QueryRetrieveMessages
 from .forms import MessageForm, NewChatForm
-from .models import ConversationModel
+from .models import ConversationModel, ConvoRepo
 from .utility.message import Message
 
 """
@@ -94,7 +94,6 @@ class ConversationModelTests(TestCase):
         )
         self.conversation_data = {
             "title": "Test Conversation",
-            "user": self.user,
             "file_name": "test_conv.txt",
             "time_of_last_message": timezone.now(),
         }
@@ -102,21 +101,11 @@ class ConversationModelTests(TestCase):
     def test_create_conversation(self):
         conversation = ConversationModel.objects.create(**self.conversation_data)
         self.assertEqual(conversation.title, "Test Conversation")
-        self.assertEqual(conversation.user, self.user)
+        #self.assertEqual(conversation.user, self.user)
         self.assertEqual(conversation.file_name, "test_conv.txt")
         self.assertIsNotNone(conversation.time_of_last_message)
         self.assertIsNotNone(conversation.id)
 
-    def test_conversation_user_foreign_key(self):
-        conversation = ConversationModel.objects.create(**self.conversation_data)
-        self.assertEqual(conversation.user.user_name, "testuser")
-
-    def test_conversation_cascade_delete(self):
-        conversation = ConversationModel.objects.create(**self.conversation_data)
-        conv_id = conversation.id
-        self.user.delete()
-        with self.assertRaises(ConversationModel.DoesNotExist):
-            ConversationModel.objects.get(id=conv_id)
 
     def test_abs_path_property(self):
         conversation = ConversationModel.objects.create(**self.conversation_data)
@@ -131,7 +120,6 @@ class ConversationModelTests(TestCase):
         long_title = "A" * 50
         conversation = ConversationModel.objects.create(
             title=long_title,
-            user=self.user,
             file_name="test.txt",
             time_of_last_message=timezone.now(),
         )
@@ -266,23 +254,23 @@ class CommandCreateConversationTests(TestCase):
         )
 
     def test_create_conversation_command(self):
-        result = CommandCreateConversation.execute(title="Paris Trip", user=self.user)
+        result = CommandCreateConversation.execute(title="Paris Trip")
         self.assertTrue(result)
 
-        conversation = ConversationModel.objects.get(title="Paris Trip", user=self.user)
+        conversation = ConversationModel.objects.get(title="Paris Trip")
         self.assertEqual(conversation.title, "Paris Trip")
-        self.assertEqual(conversation.user, self.user)
+        #self.assertEqual(conversation.user, self.user)
         self.assertIsNotNone(conversation.file_name)
 
     def test_unique_file_names(self):
-        result1 = CommandCreateConversation.execute(title="Trip 1", user=self.user)
+        result1 = CommandCreateConversation.execute(title="Trip 1")
         self.assertTrue(result1)
 
-        result2 = CommandCreateConversation.execute(title="Trip 2", user=self.user)
+        result2 = CommandCreateConversation.execute(title="Trip 2")
         self.assertTrue(result2)
 
-        conv1 = ConversationModel.objects.get(title="Trip 1", user=self.user)
-        conv2 = ConversationModel.objects.get(title="Trip 2", user=self.user)
+        conv1 = ConversationModel.objects.get(title="Trip 1")
+        conv2 = ConversationModel.objects.get(title="Trip 2")
         self.assertNotEqual(conv1.file_name, conv2.file_name)
 
 
@@ -302,15 +290,19 @@ class CommandDeleteConversationTests(TestCase):
         )
         self.conversation = ConversationModel.objects.create(
             title="Test Chat",
-            user=self.user,
             file_name="test.txt",
             time_of_last_message=timezone.now(),
+        )
+        #store copy in repo
+        ConvoRepo.objects.create(
+            userId = self.user.id,
+            convoId = self.conversation.id,
         )
 
     def test_delete_conversation_valid_user(self):
         conv_id = self.conversation.id
         result = CommandDeleteConversation.execute(
-            user_id=self.user.id, conv_id=conv_id
+             user_id=self.user.id, conv_id=conv_id
         )
         self.assertTrue(result)
 
@@ -336,7 +328,6 @@ class CommandSaveMessageTests(TestCase):
         )
         self.conversation = ConversationModel.objects.create(
             title="Test Chat",
-            user=self.user,
             file_name="test_messages.txt",
             time_of_last_message=timezone.now(),
         )
@@ -414,23 +405,32 @@ class QueryFindConversationTests(TestCase):
             password_hash=make_password("pass"),
         )
 
-        ConversationModel.objects.create(
+        convo1 = ConversationModel.objects.create(
             title="Paris Trip",
-            user=self.user1,
             file_name="paris.txt",
             time_of_last_message=timezone.now(),
         )
-        ConversationModel.objects.create(
+        convo1_2 = ConversationModel.objects.create(
             title="Rome Trip",
-            user=self.user1,
             file_name="rome.txt",
             time_of_last_message=timezone.now(),
         )
-        ConversationModel.objects.create(
+        convo2 = ConversationModel.objects.create(
             title="London Trip",
-            user=self.user2,
             file_name="london.txt",
             time_of_last_message=timezone.now(),
+        )
+        ConvoRepo.objects.create(
+            userId = self.user1.id,
+            convoId = convo1.id,
+        )
+        ConvoRepo.objects.create(
+            userId = self.user1.id,
+            convoId = convo1_2.id,
+        )
+        ConvoRepo.objects.create(
+            userId = self.user2.id,
+            convoId = convo2.id,
         )
 
     def test_find_by_user(self):
@@ -472,7 +472,6 @@ class QueryRetrieveMessagesTests(TestCase):
 
         self.conversation = ConversationModel.objects.create(
             title="Test Chat",
-            user=self.user,
             file_name="messages.txt",
             time_of_last_message=timezone.now(),
         )
@@ -541,7 +540,6 @@ class ChatViewTests(TestCase):
     def test_handle_delete_chat(self):
         conversation = ConversationModel.objects.create(
             title="Delete Me",
-            user=self.user,
             file_name="delete.txt",
             time_of_last_message=timezone.now(),
         )
@@ -554,7 +552,6 @@ class ChatViewTests(TestCase):
     def test_handle_select_chat(self):
         conversation = ConversationModel.objects.create(
             title="Select Me",
-            user=self.user,
             file_name="select.txt",
             time_of_last_message=timezone.now(),
         )
@@ -708,7 +705,7 @@ class AgentMessageSubmissionTests(TransactionTestCase):
         session["user_id"] = self.user.id
         session.save()
 
-        CommandCreateConversation.execute("Agent Test", self.user)
+        CommandCreateConversation.execute("Agent Test")
         conv_id = poll_event()["data"]["conv_id"]
         session["conv_id"] = conv_id
         session.save()
