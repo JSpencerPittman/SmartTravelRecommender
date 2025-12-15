@@ -24,9 +24,12 @@ class ConvoRepo(models.Model):
 
     @classmethod
     def _delete_Repo_inst(cls, conv_id: str) -> bool:
-        repoInst =  list(cls.objects.filter(convoId = conv_id))[0]
-        repoInst.delete()
-        return True
+        try:
+            repoInst =  list(cls.objects.filter(convoId = conv_id))[0]
+            repoInst.delete()
+            return True 
+        except Exception:
+            return False
 
 
 class ConversationModel(models.Model):
